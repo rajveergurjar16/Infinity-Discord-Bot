@@ -14,7 +14,7 @@ export async function handleAutoReplyMessage(message) {
   if (!message.guild || message.author.bot || message.system || message.webhookId) return;
   if (await isAutoReplyWhitelisted(message.guild.id, message.author.id)) return;
 
-  const content = message.content?.toLowerCase();
+  const content = message.content;
   if (!content) return;
 
   const rules = await listAutoReplyRules(message.guild.id);
@@ -22,7 +22,7 @@ export async function handleAutoReplyMessage(message) {
 
   const matchedReplies = [];
   for (const rule of rules) {
-    if (content.includes(rule.trigger.toLowerCase())) {
+    if (matchesTrigger(content, rule.trigger)) {
       matchedReplies.push(rule);
     }
   }
@@ -179,6 +179,14 @@ function formatRuleValue(rule) {
   if (rule.type === 'sticker') return `Sticker \`${rule.stickerId}\``;
   const text = rule.reply ?? '';
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
+}
+
+function matchesTrigger(content, trigger) {
+  return normalizeForMatch(content).includes(normalizeForMatch(trigger));
+}
+
+function normalizeForMatch(value) {
+  return String(value ?? '').trim().toLowerCase();
 }
 
 async function assertOwner(interaction) {
