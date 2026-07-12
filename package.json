@@ -1,0 +1,15 @@
+{
+  "name": "infinity-official",
+  "version": "1.0.0",
+  "description": "Server manager bot for the Infinity support server.",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.26.5",
+    "dotenv": "^17.4.2"
+  }
+}
