@@ -4,7 +4,8 @@ import path from 'node:path';
 const storePath = path.resolve('data', 'auto-replies.json');
 
 const defaultStore = {
-  rules: []
+  rules: [],
+  whitelist: []
 };
 
 export async function getAutoReplyStore() {
@@ -54,4 +55,37 @@ export async function removeAutoReplyRule(guildId, id) {
 export async function listAutoReplyRules(guildId) {
   const store = await getAutoReplyStore();
   return store.rules.filter((rule) => rule.guildId === guildId);
+}
+
+export async function addAutoReplyWhitelistUser(guildId, userId) {
+  const store = await getAutoReplyStore();
+  const exists = store.whitelist.some((item) => item.guildId === guildId && item.userId === userId);
+
+  if (!exists) {
+    store.whitelist.push({ guildId, userId, addedAt: Date.now() });
+    await saveAutoReplyStore(store);
+  }
+
+  return { guildId, userId };
+}
+
+export async function removeAutoReplyWhitelistUser(guildId, userId) {
+  const store = await getAutoReplyStore();
+  const nextWhitelist = store.whitelist.filter((item) => !(item.guildId === guildId && item.userId === userId));
+
+  if (nextWhitelist.length !== store.whitelist.length) {
+    await saveAutoReplyStore({ ...store, whitelist: nextWhitelist });
+  }
+
+  return store.whitelist.length - nextWhitelist.length;
+}
+
+export async function listAutoReplyWhitelist(guildId) {
+  const store = await getAutoReplyStore();
+  return store.whitelist.filter((item) => item.guildId === guildId);
+}
+
+export async function isAutoReplyWhitelisted(guildId, userId) {
+  const whitelist = await listAutoReplyWhitelist(guildId);
+  return whitelist.some((item) => item.userId === userId);
 }
