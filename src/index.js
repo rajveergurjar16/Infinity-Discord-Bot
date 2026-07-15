@@ -34,7 +34,7 @@ import {
   createTicket,
   requestCloseTicket
 } from './tickets/ticketService.js';
-import { cv2Flags, privateCv2Flags, simpleContainer } from './ui/cv2.js';
+import { privateCv2Flags, simpleContainer } from './ui/cv2.js';
 
 const client = new Client({
   intents: [
@@ -69,14 +69,6 @@ client.on(Events.MessageCreate, async (message) => {
   try {
     await handleAutoReplyMessage(message);
     await handleAutoReactMessage(message);
-
-    if (message.content?.startsWith('>>steal') && !isBotOwner(message.author.id)) {
-      await message.reply({
-        flags: cv2Flags,
-        components: [simpleContainer('Owner Only', 'Only the bot owner can use this command.')]
-      }).catch(() => {});
-      return;
-    }
 
     await handleStealPrefix(message);
   } catch (error) {

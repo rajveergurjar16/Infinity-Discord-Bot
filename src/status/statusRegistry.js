@@ -9,13 +9,16 @@ function normalizedStore(value) {
   const bots = Array.isArray(value?.bots) ? value.bots : [];
   return {
     bots: bots.filter((bot) =>
+      typeof bot?.clientId === 'string' &&
       typeof bot?.name === 'string' &&
       typeof bot?.statusUrl === 'string' &&
       typeof bot?.apiKey === 'string' &&
       typeof bot?.channelId === 'string' &&
       typeof bot?.revision === 'string'
     ).map((bot) => ({
+      clientId: bot.clientId,
       name: bot.name,
+      avatarUrl: typeof bot.avatarUrl === 'string' ? bot.avatarUrl : '',
       statusUrl: bot.statusUrl,
       apiKey: bot.apiKey,
       channelId: bot.channelId,
@@ -66,7 +69,7 @@ export async function listStatusBots() {
 
 export function upsertStatusBot(bot) {
   return mutateStore((store) => {
-    const index = store.bots.findIndex((item) => item.name.toLowerCase() === bot.name.toLowerCase());
+    const index = store.bots.findIndex((item) => item.clientId === bot.clientId);
     const created = index === -1;
     if (created) store.bots.push(bot);
     else store.bots[index] = bot;
@@ -74,12 +77,11 @@ export function upsertStatusBot(bot) {
   });
 }
 
-export function removeStatusBot(name) {
+export function removeStatusBot(clientId) {
   return mutateStore((store) => {
-    const index = store.bots.findIndex((item) => item.name.toLowerCase() === name.toLowerCase());
-    if (index === -1) return false;
-    store.bots.splice(index, 1);
-    return true;
+    const index = store.bots.findIndex((item) => item.clientId === clientId);
+    if (index === -1) return null;
+    return store.bots.splice(index, 1)[0];
   });
 }
 

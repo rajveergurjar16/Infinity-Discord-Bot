@@ -17,6 +17,24 @@ function safeName(value) {
   return value.replace(/([\\*_~`|>])/g, '\\$1');
 }
 
+function validClientId(value) {
+  return /^[1-9]\d{16,19}$/.test(value);
+}
+
+async function resolveBotIdentity(interaction, clientId) {
+  const member = await interaction.guild?.members.fetch(clientId).catch(() => null);
+  const user = member?.user ?? await interaction.client.users.fetch(clientId, { force: true }).catch(() => null);
+  if (!user?.bot) return null;
+  const avatarSource = member ?? user;
+  const avatarHash = member?.avatar ?? user.avatar;
+  const avatarExtension = avatarHash?.startsWith('a_') ? 'gif' : 'png';
+  return {
+    clientId,
+    name: member?.displayName || user.globalName || user.displayName || `Discord Bot ${clientId}`,
+    avatarUrl: avatarSource.displayAvatarURL({ extension: avatarExtension, forceStatic: false, size: 256 })
+  };
+}
+
 export const statusLogCommand = {
   data: new SlashCommandBuilder()
     .setName('statuslog')
@@ -26,11 +44,11 @@ export const statusLogCommand = {
       .setName('add')
       .setDescription('Add or update automatic status alerts for a bot.')
       .addStringOption((option) => option
-        .setName('name')
-        .setDescription('Bot name shown in status alerts.')
+        .setName('client_id')
+        .setDescription('Discord application/client ID of the monitored bot.')
         .setRequired(true)
-        .setMinLength(1)
-        .setMaxLength(50))
+        .setMinLength(17)
+        .setMaxLength(20))
       .addStringOption((option) => option
         .setName('api_url')
         .setDescription('Full status API URL.')
@@ -54,11 +72,11 @@ export const statusLogCommand = {
       .setName('remove')
       .setDescription('Stop automatic status alerts for a bot.')
       .addStringOption((option) => option
-        .setName('name')
-        .setDescription('Exact monitored bot name.')
+        .setName('client_id')
+        .setDescription('Discord application/client ID of the monitored bot.')
         .setRequired(true)
-        .setMinLength(1)
-        .setMaxLength(50))),
+        .setMinLength(17)
+        .setMaxLength(20))),
 
   async execute(interaction) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
@@ -70,18 +88,26 @@ export const statusLogCommand = {
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const action = interaction.options.getSubcommand();
-    const name = interaction.options.getString('name', true).trim();
+    const clientId = interaction.options.getString('client_id', true).trim();
+
+    if (!validClientId(clientId)) {
+      await interaction.editReply({
+        flags: cv2Flags,
+        components: [simpleContainer('Invalid Client ID', 'Enter a valid Discord bot application/client ID.')]
+      });
+      return;
+    }
 
     if (action === 'remove') {
-      const removed = await removeStatusBot(name);
+      const removed = await removeStatusBot(clientId);
       await interaction.editReply({
         flags: cv2Flags,
         allowedMentions: { parse: [] },
         components: [simpleContainer(
           removed ? 'Status Log Removed' : 'Status Log Not Found',
           removed
-            ? `Automatic alerts for **${safeName(name)}** have been stopped.`
-            : `No monitored bot named **${safeName(name)}** exists.`
+            ? `Automatic alerts for **${safeName(removed.name)}** have been stopped.`
+            : `No monitored bot with client ID \`${clientId}\` exists.`
         )]
       });
       return;
@@ -91,9 +117,10 @@ export const statusLogCommand = {
     const apiKey = interaction.options.getString('api_key', true).trim();
     const channel = interaction.options.getChannel('channel', true);
     const pingText = interaction.options.getString('pinguser')?.trim() || '';
+    const identity = await resolveBotIdentity(interaction, clientId);
 
     let errorMessage;
-    if (!name) errorMessage = 'Enter a bot name.';
+    if (!identity) errorMessage = 'That client ID does not belong to a Discord bot I can resolve.';
     else if (!validStatusUrl(statusUrl)) errorMessage = 'Enter a complete HTTP or HTTPS status API URL.';
     else if (apiKey.length < 16) errorMessage = 'The status API key must contain at least 16 characters.';
 
@@ -106,7 +133,7 @@ export const statusLogCommand = {
     }
 
     const entry = {
-      name,
+      ...identity,
       statusUrl,
       apiKey,
       channelId: channel.id,
@@ -121,7 +148,7 @@ export const statusLogCommand = {
       allowedMentions: { parse: [] },
       components: [simpleContainer(
         result.created ? 'Status Log Added' : 'Status Log Updated',
-        `**${safeName(name)}** alerts will be sent to ${channel}. Current baseline: **${currentOnline ? 'Online' : 'Offline'}**. No restart is required.`
+        `**${safeName(identity.name)}** alerts will be sent to ${channel}. Current baseline: **${currentOnline ? 'Online' : 'Offline'}**. No restart is required.`
       )]
     });
   }

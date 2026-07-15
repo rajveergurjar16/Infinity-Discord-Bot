@@ -1,8 +1,10 @@
 import {
   ContainerBuilder,
+  SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
-  TextDisplayBuilder
+  TextDisplayBuilder,
+  ThumbnailBuilder
 } from 'discord.js';
 import { cv2Flags } from '../ui/cv2.js';
 import { listStatusBots, updateStatusBotState } from './statusRegistry.js';
@@ -68,11 +70,20 @@ function statusAlert(bot, online, transitionAt) {
   const state = online ? 'online' : 'offline';
   const previousState = online ? 'offline' : 'online';
   const duration = formatDuration(transitionAt - bot.stateChangedAt);
-  const container = new ContainerBuilder()
-    .setAccentColor(online ? 0x57f287 : 0xed4245)
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      `### ${online ? ONLINE_EMOJI : OFFLINE_EMOJI} ${safeName(bot.name)} is ${state}`
-    ))
+  const headerText = new TextDisplayBuilder().setContent(
+    `### ${online ? ONLINE_EMOJI : OFFLINE_EMOJI} ${safeName(bot.name)} is ${state}`
+  );
+  const container = new ContainerBuilder().setAccentColor(online ? 0xff0000 : 0xed4245);
+  if (bot.avatarUrl) {
+    container.addSectionComponents(
+      new SectionBuilder()
+        .addTextDisplayComponents(headerText)
+        .setThumbnailAccessory(new ThumbnailBuilder().setURL(bot.avatarUrl))
+    );
+  } else {
+    container.addTextDisplayComponents(headerText);
+  }
+  container
     .addSeparatorComponents(smallSeparator())
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
       `Was ${previousState} for **${duration}**`
