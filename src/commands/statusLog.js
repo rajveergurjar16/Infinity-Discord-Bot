@@ -45,7 +45,11 @@ export const statusLogCommand = {
         .setName('channel')
         .setDescription('Channel that receives online and offline alerts.')
         .setRequired(true)
-        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
+        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement))
+      .addStringOption((option) => option
+        .setName('pinguser')
+        .setDescription('Optional mentions or text shown below every status alert.')
+        .setMaxLength(1_000)))
     .addSubcommand((subcommand) => subcommand
       .setName('remove')
       .setDescription('Stop automatic status alerts for a bot.')
@@ -86,6 +90,7 @@ export const statusLogCommand = {
     const statusUrl = interaction.options.getString('api_url', true).trim();
     const apiKey = interaction.options.getString('api_key', true).trim();
     const channel = interaction.options.getChannel('channel', true);
+    const pingText = interaction.options.getString('pinguser')?.trim() || '';
 
     let errorMessage;
     if (!name) errorMessage = 'Enter a bot name.';
@@ -100,7 +105,15 @@ export const statusLogCommand = {
       return;
     }
 
-    const entry = { name, statusUrl, apiKey, channelId: channel.id, revision: randomUUID() };
+    const entry = {
+      name,
+      statusUrl,
+      apiKey,
+      channelId: channel.id,
+      revision: randomUUID(),
+      pingText,
+      stateChangedAt: Date.now()
+    };
     const currentOnline = await checkStatusEndpoint(entry);
     const result = await upsertStatusBot({ ...entry, lastOnline: currentOnline });
     await interaction.editReply({

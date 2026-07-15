@@ -1,10 +1,17 @@
-import { ContainerBuilder, TextDisplayBuilder } from 'discord.js';
+import {
+  ContainerBuilder,
+  SeparatorBuilder,
+  SeparatorSpacingSize,
+  TextDisplayBuilder
+} from 'discord.js';
 import { cv2Flags } from '../ui/cv2.js';
 import { listStatusBots, updateStatusBotState } from './statusRegistry.js';
 
 const STATUS_TIMEOUT_MS = 900;
 const STATUS_CHECK_INTERVAL_MS = 1_000;
 const OFFLINE_FAILURES_REQUIRED = 3;
+const ONLINE_EMOJI = '<a:online:1525532564352401478>';
+const OFFLINE_EMOJI = '<a:offline:1525532809517600990>';
 let monitorTimer;
 let monitorRunning = false;
 const consecutiveFailures = new Map();
@@ -37,27 +44,64 @@ function safeName(name) {
   return name.replace(/([\\*_~`|>])/g, '\\$1');
 }
 
-function statusAlert(bot, online) {
-  const state = online ? 'Online' : 'Offline';
-  const message = online
-    ? `**${safeName(bot.name)}** is back **Online**.`
-    : `**${safeName(bot.name)}** is now **Offline**.`;
-  return new ContainerBuilder()
-    .setAccentColor(online ? 0x57f287 : 0xed4245)
-    .addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`## ${safeName(bot.name)} Status\n${message}`)
-    );
+function formatDuration(milliseconds) {
+  let seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const days = Math.floor(seconds / 86_400);
+  seconds %= 86_400;
+  const hours = Math.floor(seconds / 3_600);
+  seconds %= 3_600;
+  const minutes = Math.floor(seconds / 60);
+  seconds %= 60;
+  return [
+    days ? `${days}d` : '',
+    hours ? `${hours}h` : '',
+    minutes ? `${minutes}m` : '',
+    `${seconds}s`
+  ].filter(Boolean).join(' ');
 }
 
-async function notifyTransition(client, bot, online) {
+function smallSeparator() {
+  return new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
+}
+
+function statusAlert(bot, online, transitionAt) {
+  const state = online ? 'online' : 'offline';
+  const previousState = online ? 'offline' : 'online';
+  const duration = formatDuration(transitionAt - bot.stateChangedAt);
+  const container = new ContainerBuilder()
+    .setAccentColor(online ? 0x57f287 : 0xed4245)
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `### ${online ? ONLINE_EMOJI : OFFLINE_EMOJI} ${safeName(bot.name)} is ${state}`
+    ))
+    .addSeparatorComponents(smallSeparator())
+    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+      `Was ${previousState} for **${duration}**`
+    ));
+
+  if (bot.pingText) {
+    container
+      .addSeparatorComponents(smallSeparator())
+      .addTextDisplayComponents(new TextDisplayBuilder().setContent(bot.pingText));
+  }
+  return container;
+}
+
+function allowedMentions(pingText) {
+  const users = [...pingText.matchAll(/<@!?([1-9]\d{16,19})>/g)].map((match) => match[1]);
+  const roles = [...pingText.matchAll(/<@&([1-9]\d{16,19})>/g)].map((match) => match[1]);
+  const parse = /@(everyone|here)\b/i.test(pingText) ? ['everyone'] : [];
+  return { parse, users: [...new Set(users)], roles: [...new Set(roles)], repliedUser: false };
+}
+
+async function notifyTransition(client, bot, online, transitionAt) {
   const channel = await client.channels.fetch(bot.channelId).catch(() => null);
   if (!channel?.isTextBased() || typeof channel.send !== 'function') {
     throw new Error(`Status log channel ${bot.channelId} is unavailable for ${bot.name}.`);
   }
   await channel.send({
     flags: cv2Flags,
-    allowedMentions: { parse: [] },
-    components: [statusAlert(bot, online)]
+    allowedMentions: allowedMentions(bot.pingText),
+    components: [statusAlert(bot, online, transitionAt)]
   });
 }
 
@@ -72,8 +116,9 @@ async function checkBot(client, bot) {
   if (online) {
     consecutiveFailures.delete(bot.revision);
     if (bot.lastOnline) return;
-    await notifyTransition(client, bot, true);
-    await updateStatusBotState(bot.revision, true);
+    const transitionAt = Date.now();
+    await notifyTransition(client, bot, true, transitionAt);
+    await updateStatusBotState(bot.revision, true, transitionAt);
     return;
   }
 
@@ -89,8 +134,9 @@ async function checkBot(client, bot) {
   consecutiveFailures.set(bot.revision, failures);
   if (failures < OFFLINE_FAILURES_REQUIRED) return;
 
-  await notifyTransition(client, bot, false);
-  const updated = await updateStatusBotState(bot.revision, false);
+  const transitionAt = Date.now();
+  await notifyTransition(client, bot, false, transitionAt);
+  const updated = await updateStatusBotState(bot.revision, false, transitionAt);
   if (updated) consecutiveFailures.delete(bot.revision);
 }
 

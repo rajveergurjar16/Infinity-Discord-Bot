@@ -20,7 +20,11 @@ function normalizedStore(value) {
       apiKey: bot.apiKey,
       channelId: bot.channelId,
       revision: bot.revision,
-      lastOnline: typeof bot.lastOnline === 'boolean' ? bot.lastOnline : null
+      lastOnline: typeof bot.lastOnline === 'boolean' ? bot.lastOnline : null,
+      stateChangedAt: Number.isFinite(bot.stateChangedAt) && bot.stateChangedAt > 0
+        ? bot.stateChangedAt
+        : Date.now(),
+      pingText: typeof bot.pingText === 'string' ? bot.pingText : ''
     }))
   };
 }
@@ -79,11 +83,12 @@ export function removeStatusBot(name) {
   });
 }
 
-export function updateStatusBotState(revision, online) {
+export function updateStatusBotState(revision, online, stateChangedAt = Date.now()) {
   return mutateStore((store) => {
     const bot = store.bots.find((item) => item.revision === revision);
     if (!bot) return false;
     bot.lastOnline = online;
+    bot.stateChangedAt = stateChangedAt;
     return true;
   });
 }
