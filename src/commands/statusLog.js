@@ -17,20 +17,20 @@ function safeName(value) {
   return value.replace(/([\\*_~`|>])/g, '\\$1');
 }
 
-function validClientId(value) {
+function validUserId(value) {
   return /^[1-9]\d{16,19}$/.test(value);
 }
 
-async function resolveBotIdentity(interaction, clientId) {
-  const member = await interaction.guild?.members.fetch(clientId).catch(() => null);
-  const user = member?.user ?? await interaction.client.users.fetch(clientId, { force: true }).catch(() => null);
+async function resolveBotIdentity(interaction, userId) {
+  const member = await interaction.guild?.members.fetch(userId).catch(() => null);
+  const user = member?.user ?? await interaction.client.users.fetch(userId, { force: true }).catch(() => null);
   if (!user?.bot) return null;
   const avatarSource = member ?? user;
   const avatarHash = member?.avatar ?? user.avatar;
   const avatarExtension = avatarHash?.startsWith('a_') ? 'gif' : 'png';
   return {
-    clientId,
-    name: member?.displayName || user.globalName || user.displayName || `Discord Bot ${clientId}`,
+    userId,
+    name: member?.displayName || user.globalName || user.displayName || `Discord Bot ${userId}`,
     avatarUrl: avatarSource.displayAvatarURL({ extension: avatarExtension, forceStatic: false, size: 256 })
   };
 }
@@ -44,8 +44,8 @@ export const statusLogCommand = {
       .setName('add')
       .setDescription('Add or update automatic status alerts for a bot.')
       .addStringOption((option) => option
-        .setName('client_id')
-        .setDescription('Discord application/client ID of the monitored bot.')
+        .setName('user_id')
+        .setDescription('Discord user ID of the monitored bot.')
         .setRequired(true)
         .setMinLength(17)
         .setMaxLength(20))
@@ -72,8 +72,8 @@ export const statusLogCommand = {
       .setName('remove')
       .setDescription('Stop automatic status alerts for a bot.')
       .addStringOption((option) => option
-        .setName('client_id')
-        .setDescription('Discord application/client ID of the monitored bot.')
+        .setName('user_id')
+        .setDescription('Discord user ID of the monitored bot.')
         .setRequired(true)
         .setMinLength(17)
         .setMaxLength(20))),
@@ -88,18 +88,18 @@ export const statusLogCommand = {
     }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const action = interaction.options.getSubcommand();
-    const clientId = interaction.options.getString('client_id', true).trim();
+    const userId = interaction.options.getString('user_id', true).trim();
 
-    if (!validClientId(clientId)) {
+    if (!validUserId(userId)) {
       await interaction.editReply({
         flags: cv2Flags,
-        components: [simpleContainer('Invalid Client ID', 'Enter a valid Discord bot application/client ID.')]
+        components: [simpleContainer('Invalid User ID', 'Enter a valid Discord bot user ID.')]
       });
       return;
     }
 
     if (action === 'remove') {
-      const removed = await removeStatusBot(clientId);
+      const removed = await removeStatusBot(userId);
       await interaction.editReply({
         flags: cv2Flags,
         allowedMentions: { parse: [] },
@@ -107,7 +107,7 @@ export const statusLogCommand = {
           removed ? 'Status Log Removed' : 'Status Log Not Found',
           removed
             ? `Automatic alerts for **${safeName(removed.name)}** have been stopped.`
-            : `No monitored bot with client ID \`${clientId}\` exists.`
+            : `No monitored bot with user ID \`${userId}\` exists.`
         )]
       });
       return;
@@ -117,10 +117,10 @@ export const statusLogCommand = {
     const apiKey = interaction.options.getString('api_key', true).trim();
     const channel = interaction.options.getChannel('channel', true);
     const pingText = interaction.options.getString('pinguser')?.trim() || '';
-    const identity = await resolveBotIdentity(interaction, clientId);
+    const identity = await resolveBotIdentity(interaction, userId);
 
     let errorMessage;
-    if (!identity) errorMessage = 'That client ID does not belong to a Discord bot I can resolve.';
+    if (!identity) errorMessage = 'That user ID does not belong to a Discord bot I can resolve.';
     else if (!validStatusUrl(statusUrl)) errorMessage = 'Enter a complete HTTP or HTTPS status API URL.';
     else if (apiKey.length < 16) errorMessage = 'The status API key must contain at least 16 characters.';
 

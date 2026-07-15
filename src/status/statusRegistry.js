@@ -9,14 +9,14 @@ function normalizedStore(value) {
   const bots = Array.isArray(value?.bots) ? value.bots : [];
   return {
     bots: bots.filter((bot) =>
-      typeof bot?.clientId === 'string' &&
+      typeof (bot?.userId ?? bot?.clientId) === 'string' &&
       typeof bot?.name === 'string' &&
       typeof bot?.statusUrl === 'string' &&
       typeof bot?.apiKey === 'string' &&
       typeof bot?.channelId === 'string' &&
       typeof bot?.revision === 'string'
     ).map((bot) => ({
-      clientId: bot.clientId,
+      userId: bot.userId ?? bot.clientId,
       name: bot.name,
       avatarUrl: typeof bot.avatarUrl === 'string' ? bot.avatarUrl : '',
       statusUrl: bot.statusUrl,
@@ -69,7 +69,7 @@ export async function listStatusBots() {
 
 export function upsertStatusBot(bot) {
   return mutateStore((store) => {
-    const index = store.bots.findIndex((item) => item.clientId === bot.clientId);
+    const index = store.bots.findIndex((item) => item.userId === bot.userId);
     const created = index === -1;
     if (created) store.bots.push(bot);
     else store.bots[index] = bot;
@@ -77,9 +77,9 @@ export function upsertStatusBot(bot) {
   });
 }
 
-export function removeStatusBot(clientId) {
+export function removeStatusBot(userId) {
   return mutateStore((store) => {
-    const index = store.bots.findIndex((item) => item.clientId === clientId);
+    const index = store.bots.findIndex((item) => item.userId === userId);
     if (index === -1) return null;
     return store.bots.splice(index, 1)[0];
   });

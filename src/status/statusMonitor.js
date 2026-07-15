@@ -1,8 +1,6 @@
 import {
   ContainerBuilder,
   SectionBuilder,
-  SeparatorBuilder,
-  SeparatorSpacingSize,
   TextDisplayBuilder,
   ThumbnailBuilder
 } from 'discord.js';
@@ -11,7 +9,7 @@ import { listStatusBots, updateStatusBotState } from './statusRegistry.js';
 
 const STATUS_TIMEOUT_MS = 900;
 const STATUS_CHECK_INTERVAL_MS = 1_000;
-const OFFLINE_FAILURES_REQUIRED = 3;
+const OFFLINE_FAILURES_REQUIRED = 5;
 const ONLINE_EMOJI = '<a:online:1525532564352401478>';
 const OFFLINE_EMOJI = '<a:offline:1525532809517600990>';
 let monitorTimer;
@@ -62,10 +60,6 @@ function formatDuration(milliseconds) {
   ].filter(Boolean).join(' ');
 }
 
-function smallSeparator() {
-  return new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
-}
-
 function statusAlert(bot, online, transitionAt) {
   const state = online ? 'online' : 'offline';
   const previousState = online ? 'offline' : 'online';
@@ -73,7 +67,7 @@ function statusAlert(bot, online, transitionAt) {
   const headerText = new TextDisplayBuilder().setContent(
     `### ${online ? ONLINE_EMOJI : OFFLINE_EMOJI} ${safeName(bot.name)} is ${state}`
   );
-  const container = new ContainerBuilder().setAccentColor(online ? 0xff0000 : 0xed4245);
+  const container = new ContainerBuilder().setAccentColor(online ? 0x00FF19 : 0xff0000);
   if (bot.avatarUrl) {
     container.addSectionComponents(
       new SectionBuilder()
@@ -84,15 +78,12 @@ function statusAlert(bot, online, transitionAt) {
     container.addTextDisplayComponents(headerText);
   }
   container
-    .addSeparatorComponents(smallSeparator())
     .addTextDisplayComponents(new TextDisplayBuilder().setContent(
       `Was ${previousState} for **${duration}**`
     ));
 
   if (bot.pingText) {
-    container
-      .addSeparatorComponents(smallSeparator())
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent(bot.pingText));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(bot.pingText));
   }
   return container;
 }
@@ -138,14 +129,15 @@ async function checkBot(client, bot) {
     return;
   }
 
-  const failures = Math.min(
-    OFFLINE_FAILURES_REQUIRED,
-    (consecutiveFailures.get(bot.revision) ?? 0) + 1
-  );
-  consecutiveFailures.set(bot.revision, failures);
-  if (failures < OFFLINE_FAILURES_REQUIRED) return;
+  const previousFailure = consecutiveFailures.get(bot.revision);
+  const failure = {
+    count: Math.min(OFFLINE_FAILURES_REQUIRED, (previousFailure?.count ?? 0) + 1),
+    firstFailedAt: previousFailure?.firstFailedAt ?? Date.now()
+  };
+  consecutiveFailures.set(bot.revision, failure);
+  if (failure.count < OFFLINE_FAILURES_REQUIRED) return;
 
-  const transitionAt = Date.now();
+  const transitionAt = failure.firstFailedAt;
   await notifyTransition(client, bot, false, transitionAt);
   const updated = await updateStatusBotState(bot.revision, false, transitionAt);
   if (updated) consecutiveFailures.delete(bot.revision);
