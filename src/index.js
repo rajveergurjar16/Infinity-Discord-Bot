@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { ticketCommand } from './commands/ticket.js';
-import { statusCommand } from './commands/status.js';
+import { statusLogCommand } from './commands/statusLog.js';
 import { giveawayCommand } from './commands/giveaway.js';
 import { pingCommand } from './commands/ping.js';
 import { autoReactCommand } from './commands/autoreact.js';
@@ -17,15 +17,7 @@ import {
 import {
   scheduleActiveGiveaways
 } from './giveaways/giveawayService.js';
-import {
-  cancelStatusEditor,
-  handleStatusEditorAction,
-  handleStatusEditorModal,
-  handleStatusEditorSelect,
-  refreshStatusPanelButton,
-  sendStatusPanel,
-  startStatusAutoRefresh
-} from './status/statusPanel.js';
+import { startStatusMonitor } from './status/statusMonitor.js';
 import {
   cancelEditor,
   handleEditorAction,
@@ -55,7 +47,7 @@ const client = new Client({
 
 const commands = new Map([
   [ticketCommand.data.name, ticketCommand],
-  [statusCommand.data.name, statusCommand],
+  [statusLogCommand.data.name, statusLogCommand],
   [giveawayCommand.data.name, giveawayCommand],
   [pingCommand.data.name, pingCommand],
   [autoReactCommand.data.name, autoReactCommand],
@@ -63,11 +55,11 @@ const commands = new Map([
   [reactCommand.data.name, reactCommand]
 ]);
 
-const publicCommands = new Set(['giveaway', 'ping']);
+const publicCommands = new Set(['giveaway', 'ping', 'statuslog']);
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
-  startStatusAutoRefresh(readyClient);
+  startStatusMonitor(readyClient);
   scheduleActiveGiveaways(readyClient).catch((error) => {
     console.error('Giveaway scheduler startup error:', error);
   });
@@ -118,11 +110,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.isModalSubmit() && interaction.customId.startsWith('status_editor_modal:')) {
-      await handleStatusEditorModal(interaction);
-      return;
-    }
-
     if (interaction.isModalSubmit() && interaction.customId.startsWith('steal_modal:')) {
       const handled = await handleStealModal(interaction);
       if (handled) return;
@@ -134,11 +121,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     ) {
       await handleEditorChannelSelect(interaction);
       return;
-    }
-
-    if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('status_editor_select:')) {
-      const handled = await handleStatusEditorSelect(interaction);
-      if (handled) return;
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:create') {
@@ -166,36 +148,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.isStringSelectMenu() && interaction.customId === 'status_editor:action') {
-      await handleStatusEditorAction(interaction);
-      return;
-    }
-
-    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('status_editor_select:')) {
-      const handled = await handleStatusEditorSelect(interaction);
-      if (handled) return;
-    }
-
     if (!interaction.isButton()) return;
 
     if (interaction.customId.startsWith('steal:')) {
       const handled = await handleStealInteraction(interaction);
       if (handled) return;
-    }
-
-    if (interaction.customId === 'status_editor:send') {
-      await sendStatusPanel(interaction);
-      return;
-    }
-
-    if (interaction.customId === 'status_editor:cancel') {
-      await cancelStatusEditor(interaction);
-      return;
-    }
-
-    if (interaction.customId === 'status:refresh') {
-      await refreshStatusPanelButton(interaction);
-      return;
     }
 
     if (interaction.customId === 'ticket_editor:send') {

@@ -51,35 +51,16 @@ It opens a live embed preview with:
 
 Ticket settings are saved in `data/ticket-settings.json`.
 
-## Bot Status Panel
+## Bot Status
 
-Use this command in Discord:
+Deploy the command once. Server admins can configure or update monitored bots at runtime:
 
 ```text
-/status panel
+/statuslog add name:Froggy api_url:http://FROGGY_SERVER_IP:3210/api/status api_key:FROGGY_STATUS_API_KEY channel:#bot-status
+/statuslog remove name:Froggy
 ```
 
-It opens a live CV2 dashboard editor with:
-
-- text editor: title, description, auto-refresh interval
-- add/remove bot using a status API URL and icon URL
-- panel channel selector
-- manual channel ID fallback
-- Send Panel / Update Panel and Cancel buttons
-- public refresh button
-
-Status settings are saved in `data/status-settings.json`.
-
-The status API should respond when the bot is online. Optional JSON fields:
-
-```json
-{
-  "online": true,
-  "onlineSince": "2026-07-11T10:00:00.000Z",
-  "uptime": "99.98%",
-  "iconUrl": "https://example.com/icon.png"
-}
-```
+Infinity checks each configured API every second with a 900ms request timeout. Three consecutive non-online checks are required before an Offline alert, preventing a single network hiccup from creating a false alert. The first successful check after an outage sends the Online recovery alert. Registry changes are saved in `data/status-bots.json` and take effect immediately without editing `.env` or restarting Infinity. Reusing the same bot name updates its endpoint, key, channel, and current baseline.
 
 ## Giveaway System
 
