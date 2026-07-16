@@ -67,23 +67,22 @@ function statusAlert(bot, online, transitionAt) {
   const headerText = new TextDisplayBuilder().setContent(
     `### ${online ? ONLINE_EMOJI : OFFLINE_EMOJI} ${safeName(bot.name)} is ${state}`
   );
+  const durationText = new TextDisplayBuilder().setContent(
+    `Was ${previousState} for **${duration}**`
+  );
+  const statusText = [headerText, durationText];
+  if (bot.pingText) {
+    statusText.push(new TextDisplayBuilder().setContent(bot.pingText));
+  }
   const container = new ContainerBuilder().setAccentColor(online ? 0x00FF19 : 0xff0000);
   if (bot.avatarUrl) {
     container.addSectionComponents(
       new SectionBuilder()
-        .addTextDisplayComponents(headerText)
+        .addTextDisplayComponents(...statusText)
         .setThumbnailAccessory(new ThumbnailBuilder().setURL(bot.avatarUrl))
     );
   } else {
-    container.addTextDisplayComponents(headerText);
-  }
-  container
-    .addTextDisplayComponents(new TextDisplayBuilder().setContent(
-      `Was ${previousState} for **${duration}**`
-    ));
-
-  if (bot.pingText) {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(bot.pingText));
+    container.addTextDisplayComponents(...statusText);
   }
   return container;
 }
