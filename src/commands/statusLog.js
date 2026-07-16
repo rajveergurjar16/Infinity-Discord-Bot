@@ -139,6 +139,11 @@ export const statusLogCommand = {
       channelId: channel.id,
       revision: randomUUID(),
       pingText,
+      ownerId: interaction.user.id,
+      createdAt: Date.now(),
+      lastObservedAt: Date.now(),
+      totalObservedMs: 0,
+      onlineObservedMs: 0,
       stateChangedAt: Date.now()
     };
     const currentOnline = await checkStatusEndpoint(entry);

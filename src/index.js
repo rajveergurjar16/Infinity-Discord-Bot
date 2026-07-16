@@ -2,6 +2,7 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
 import { ticketCommand } from './commands/ticket.js';
 import { statusLogCommand } from './commands/statusLog.js';
+import { statusPanelCommand } from './commands/statusPanel.js';
 import { giveawayCommand } from './commands/giveaway.js';
 import { pingCommand } from './commands/ping.js';
 import { autoReactCommand } from './commands/autoreact.js';
@@ -17,7 +18,7 @@ import {
 import {
   scheduleActiveGiveaways
 } from './giveaways/giveawayService.js';
-import { startStatusMonitor } from './status/statusMonitor.js';
+import { handleStatusInteraction, startStatusMonitor } from './status/statusMonitor.js';
 import {
   cancelEditor,
   handleEditorAction,
@@ -48,6 +49,7 @@ const client = new Client({
 const commands = new Map([
   [ticketCommand.data.name, ticketCommand],
   [statusLogCommand.data.name, statusLogCommand],
+  [statusPanelCommand.data.name, statusPanelCommand],
   [giveawayCommand.data.name, giveawayCommand],
   [pingCommand.data.name, pingCommand],
   [autoReactCommand.data.name, autoReactCommand],
@@ -55,7 +57,7 @@ const commands = new Map([
   [reactCommand.data.name, reactCommand]
 ]);
 
-const publicCommands = new Set(['giveaway', 'ping', 'statuslog']);
+const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel']);
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
@@ -125,6 +127,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (handled) return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('status_panel:')) {
+      const handled = await handleStatusInteraction(interaction);
+      if (handled) return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_editor:action') {
       await handleEditorAction(interaction);
       return;
@@ -144,6 +151,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.customId.startsWith('steal:')) {
       const handled = await handleStealInteraction(interaction);
+      if (handled) return;
+    }
+
+    if (interaction.customId.startsWith('status_alert_delete:')) {
+      const handled = await handleStatusInteraction(interaction);
       if (handled) return;
     }
 

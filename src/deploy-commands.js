@@ -2,6 +2,7 @@ import { REST, Routes } from 'discord.js';
 import { config } from './config.js';
 import { ticketCommand } from './commands/ticket.js';
 import { statusLogCommand } from './commands/statusLog.js';
+import { statusPanelCommand } from './commands/statusPanel.js';
 import { giveawayCommand } from './commands/giveaway.js';
 import { pingCommand } from './commands/ping.js';
 import { autoReactCommand } from './commands/autoreact.js';
@@ -11,6 +12,7 @@ import { reactCommand } from './commands/react.js';
 const commands = [
   ticketCommand.data.toJSON(),
   statusLogCommand.data.toJSON(),
+  statusPanelCommand.data.toJSON(),
   giveawayCommand.data.toJSON(),
   pingCommand.data.toJSON(),
   autoReactCommand.data.toJSON(),
