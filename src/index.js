@@ -8,6 +8,8 @@ import { pingCommand } from './commands/ping.js';
 import { autoReactCommand } from './commands/autoreact.js';
 import { autoReplyCommand } from './commands/autoreply.js';
 import { reactCommand } from './commands/react.js';
+import { autoPingCommand } from './commands/autoping.js';
+import { handleAutoPingMemberJoin } from './autoping/autoPingService.js';
 import { handleAutoReactMessage, isBotOwner } from './autoreact/autoReactService.js';
 import { handleAutoReplyMessage } from './autoreply/autoReplyService.js';
 import {
@@ -40,6 +42,7 @@ import { privateCv2Flags, simpleContainer } from './ui/cv2.js';
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.MessageContent
@@ -54,10 +57,11 @@ const commands = new Map([
   [pingCommand.data.name, pingCommand],
   [autoReactCommand.data.name, autoReactCommand],
   [autoReplyCommand.data.name, autoReplyCommand],
-  [reactCommand.data.name, reactCommand]
+  [reactCommand.data.name, reactCommand],
+  [autoPingCommand.data.name, autoPingCommand]
 ]);
 
-const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel']);
+const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel', 'autoping']);
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
@@ -78,6 +82,14 @@ client.on(Events.MessageCreate, async (message) => {
     if (message.content?.startsWith('>>steal')) {
       await message.reply('Something went wrong while stealing that expression.').catch(() => {});
     }
+  }
+});
+
+client.on(Events.GuildMemberAdd, async (member) => {
+  try {
+    await handleAutoPingMemberJoin(member);
+  } catch (error) {
+    console.error('Auto-ping member join error:', error);
   }
 });
 

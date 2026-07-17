@@ -30,6 +30,19 @@ npm run deploy
 npm start
 ```
 
+Enable **Server Members Intent** for the bot in Discord Developer Portal so member-join automation can receive join events.
+
+## New Member Auto-Ping
+
+Members with **Manage Server** can configure a temporary mention for every new member:
+
+```text
+/autoping channel:#register-here
+/autoping disable:true
+```
+
+Each member receives a separate `Welcome!! @user` mention. The ping message is automatically deleted shortly after it is sent, while Discord may retain the mention notification or unread badge according to the recipient's client and notification settings. Settings are saved per server in `data/auto-ping.json`.
+
 ## Ticket Panel Editor
 
 Use this command in Discord:

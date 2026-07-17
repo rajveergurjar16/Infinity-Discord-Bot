@@ -8,6 +8,7 @@ import { pingCommand } from './commands/ping.js';
 import { autoReactCommand } from './commands/autoreact.js';
 import { autoReplyCommand } from './commands/autoreply.js';
 import { reactCommand } from './commands/react.js';
+import { autoPingCommand } from './commands/autoping.js';
 
 const commands = [
   ticketCommand.data.toJSON(),
@@ -17,7 +18,8 @@ const commands = [
   pingCommand.data.toJSON(),
   autoReactCommand.data.toJSON(),
   autoReplyCommand.data.toJSON(),
-  reactCommand.data.toJSON()
+  reactCommand.data.toJSON(),
+  autoPingCommand.data.toJSON()
 ];
 const rest = new REST({ version: '10' }).setToken(config.token);
 

@@ -35,6 +35,19 @@ let monitorRunning = false;
 let panelRunning = false;
 const consecutiveFailures = new Map();
 
+export function isDiscordBotOnline(data) {
+  // A service can be degraded because its database, Lavalink, or another
+  // dependency is down while the Discord bot itself is still connected.
+  // Prefer the Discord gateway fields whenever the status API provides them.
+  if (typeof data?.discord?.ready === 'boolean') return data.discord.ready;
+
+  const gatewayState = String(data?.discord?.gatewayState ?? '').trim().toLowerCase();
+  if (gatewayState) return ['ready', 'resumed', 'connected'].includes(gatewayState);
+
+  // Backward compatibility for older status APIs without a Discord section.
+  return String(data?.status ?? '').trim().toLowerCase() === 'online';
+}
+
 export async function checkStatusEndpoint(bot) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), STATUS_TIMEOUT_MS);
@@ -51,7 +64,7 @@ export async function checkStatusEndpoint(bot) {
     });
     if (!response.ok) return false;
     const data = await response.json();
-    return data?.status === 'online';
+    return isDiscordBotOnline(data);
   } catch {
     return false;
   } finally {
