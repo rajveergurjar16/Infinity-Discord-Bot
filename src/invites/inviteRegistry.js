@@ -17,6 +17,7 @@ function normalizeStore(value) {
       userId: app.userId,
       name: app.name,
       avatarUrl: typeof app.avatarUrl === 'string' ? app.avatarUrl : '',
+      description: typeof app.description === 'string' ? app.description.trim().slice(0, 300) : '',
       permissions: app.permissions,
       addedBy: typeof app.addedBy === 'string' ? app.addedBy : '',
       updatedAt: Number.isFinite(app.updatedAt) ? app.updatedAt : Date.now()

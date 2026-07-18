@@ -16,6 +16,10 @@ export const inviteCommand = {
         .setName('permissions')
         .setDescription('Discord permission integer requested by the invite.')
         .setRequired(true))
+      .addStringOption((option) => option
+        .setName('description')
+        .setDescription('Optional short description shown below the bot name.')
+        .setMaxLength(300))
       .addChannelOption((option) => option
         .setName('channel')
         .setDescription('Dashboard channel; defaults to the current channel.')

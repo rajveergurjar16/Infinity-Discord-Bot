@@ -52,7 +52,9 @@ export function inviteDashboardPayload(apps) {
     container.addSeparatorComponents(
       new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
     );
-    const nameDisplay = new TextDisplayBuilder().setContent(`### ${safeName(app.name)}`);
+    const details = [`### ${safeName(app.name)}`];
+    if (app.description) details.push(app.description);
+    const nameDisplay = new TextDisplayBuilder().setContent(details.join('\n'));
     if (app.avatarUrl) {
       container.addSectionComponents(
         new SectionBuilder()
@@ -78,7 +80,11 @@ export function inviteDashboardPayload(apps) {
     new TextDisplayBuilder().setContent(`-# Last Updated: <t:${Math.floor(Date.now() / 1000)}:f>`)
   );
 
-  return { flags: cv2Flags, components: [container] };
+  return {
+    flags: cv2Flags,
+    allowedMentions: { parse: [] },
+    components: [container]
+  };
 }
 
 async function updatePanel(client, panel, apps) {
@@ -136,6 +142,7 @@ export async function configureInviteDashboard(interaction) {
 
   const userId = interaction.options.getString('user_id', true).trim();
   const permissionInput = interaction.options.getString('permissions', true);
+  const description = interaction.options.getString('description')?.trim().slice(0, 300) || '';
   const targetChannel = interaction.options.getChannel('channel') ?? interaction.channel;
 
   if (!/^\d{17,20}$/.test(userId)) {
@@ -180,6 +187,7 @@ export async function configureInviteDashboard(interaction) {
     userId,
     name: user.globalName || user.username,
     avatarUrl: user.displayAvatarURL({ extension: avatarExtension, size: 256 }),
+    description,
     permissions: permissions.toString(),
     addedBy: interaction.user.id,
     updatedAt: Date.now()
