@@ -11,6 +11,7 @@ import { reactCommand } from './commands/react.js';
 import { autoPingCommand } from './commands/autoping.js';
 import { inviteCommand } from './commands/invite.js';
 import { reminderCommand } from './commands/reminder.js';
+import { subtagCommand } from './commands/subtag.js';
 import { handleAutoPingMemberJoin } from './autoping/autoPingService.js';
 import { handleAutoReactMessage, isBotOwner } from './autoreact/autoReactService.js';
 import { handleAutoReplyMessage } from './autoreply/autoReplyService.js';
@@ -45,6 +46,10 @@ import {
   handleReminderInteraction,
   startReminderScheduler
 } from './reminders/reminderService.js';
+import {
+  handleSubtagInteraction,
+  handleSubtagUserUpdate
+} from './subtag/subtagService.js';
 
 const client = new Client({
   intents: [
@@ -67,10 +72,11 @@ const commands = new Map([
   [reactCommand.data.name, reactCommand],
   [autoPingCommand.data.name, autoPingCommand],
   [inviteCommand.data.name, inviteCommand],
-  [reminderCommand.data.name, reminderCommand]
+  [reminderCommand.data.name, reminderCommand],
+  [subtagCommand.data.name, subtagCommand]
 ]);
 
-const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel', 'autoping', 'reminder']);
+const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel', 'autoping', 'reminder', 'subtag']);
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
@@ -104,6 +110,14 @@ client.on(Events.GuildMemberAdd, async (member) => {
   }
 });
 
+client.on(Events.UserUpdate, async (oldUser, newUser) => {
+  try {
+    await handleSubtagUserUpdate(oldUser, newUser, client);
+  } catch (error) {
+    console.error('Subtag user update error:', error);
+  }
+});
+
 client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (interaction.isChatInputCommand()) {
@@ -132,6 +146,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (handled) return;
     }
 
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('subtag_editor_modal:')) {
+      const handled = await handleSubtagInteraction(interaction);
+      if (handled) return;
+    }
+
     if (interaction.isModalSubmit() && interaction.customId.startsWith('steal_modal:')) {
       const handled = await handleStealModal(interaction);
       if (handled) return;
@@ -143,6 +162,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
     ) {
       await handleEditorChannelSelect(interaction);
       return;
+    }
+
+    if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('subtag_editor_select:')) {
+      const handled = await handleSubtagInteraction(interaction);
+      if (handled) return;
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket:create') {
@@ -162,6 +186,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.isStringSelectMenu() && interaction.customId.startsWith('reminder_panel:')) {
       const handled = await handleReminderInteraction(interaction);
+      if (handled) return;
+    }
+
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('subtag_editor:')) {
+      const handled = await handleSubtagInteraction(interaction);
       if (handled) return;
     }
 
@@ -197,6 +226,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       interaction.customId.startsWith('reminder_action:')
     ) {
       const handled = await handleReminderInteraction(interaction);
+      if (handled) return;
+    }
+
+    if (interaction.customId.startsWith('subtag_editor:')) {
+      const handled = await handleSubtagInteraction(interaction);
       if (handled) return;
     }
 

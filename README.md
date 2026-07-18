@@ -127,6 +127,27 @@ The `repeat` option also supports custom intervals such as `2h`, `4d`, `2w`,
 occurrence, so snoozing or restarting the bot does not gradually shift its
 original cycle.
 
+## Server Tag Notifications
+
+Only server administrators can configure profile server-tag notifications:
+
+```text
+/subtag adopt
+/subtag remove
+```
+
+Each command opens an ephemeral embed preview. Admins can edit the title,
+message, color, footer, thumbnail, large image, notification channel, and
+enabled state before saving. Supported placeholders are `{user}`,
+`{displayname}`, `{username}`, `{userid}`, `{tag}`, `{server}`,
+`{membercount}`, and `{avatar}`. Settings persist in
+`data/subtag-settings.json`.
+
+Infinity compares Discord's old and new `primaryGuild` user data. It sends the
+configured adopt notification when the member starts displaying this server's
+tag and the remove notification when they disable it or switch to another
+server tag. **Server Members Intent** must remain enabled.
+
 ## Bot Status
 
 Deploy the command once. Server admins can configure or update monitored bots at runtime:

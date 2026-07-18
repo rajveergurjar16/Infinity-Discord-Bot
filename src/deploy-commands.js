@@ -11,6 +11,7 @@ import { reactCommand } from './commands/react.js';
 import { autoPingCommand } from './commands/autoping.js';
 import { inviteCommand } from './commands/invite.js';
 import { reminderCommand } from './commands/reminder.js';
+import { subtagCommand } from './commands/subtag.js';
 
 const commands = [
   ticketCommand.data.toJSON(),
@@ -23,7 +24,8 @@ const commands = [
   reactCommand.data.toJSON(),
   autoPingCommand.data.toJSON(),
   inviteCommand.data.toJSON(),
-  reminderCommand.data.toJSON()
+  reminderCommand.data.toJSON(),
+  subtagCommand.data.toJSON()
 ];
 const rest = new REST({ version: '10' }).setToken(config.token);
 
