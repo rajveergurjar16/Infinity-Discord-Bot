@@ -12,12 +12,6 @@ import {
 } from '../reminders/reminderService.js';
 import { privateCv2Flags, simpleContainer } from '../ui/cv2.js';
 
-const repeatChoices = [
-  { name: 'Once', value: 'once' },
-  { name: 'Daily', value: 'daily' },
-  { name: 'Weekly', value: 'weekly' },
-  { name: 'Monthly', value: 'monthly' }
-];
 const priorityChoices = [
   { name: 'Normal', value: 'normal' },
   { name: 'Important', value: 'important' },
@@ -55,8 +49,7 @@ export const reminderCommand = {
         .setDescription('User or role to notify.'))
       .addStringOption((option) => option
         .setName('repeat')
-        .setDescription('Repeat schedule.')
-        .addChoices(...repeatChoices))
+        .setDescription('once, daily, monthly, 2h, 4d, 2week, etc.'))
       .addStringOption((option) => option
         .setName('priority')
         .setDescription('Controls reminder color and escalation.')

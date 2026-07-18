@@ -26,7 +26,9 @@ import {
   formatInputHint,
   formatPriority,
   formatRepeat,
+  formatRepeatHint,
   nextFutureRepeatAt,
+  normalizeRepeat,
   parseReminderTime
 } from './reminderTime.js';
 
@@ -228,6 +230,14 @@ export async function createReminderPreview(interaction) {
   }
 
   const mentionable = interaction.options.getMentionable('ping');
+  const repeat = normalizeRepeat(interaction.options.getString('repeat') || 'once');
+  if (!repeat) {
+    await interaction.reply({
+      flags: privateCv2Flags,
+      components: [simpleContainer('Invalid Repeat Schedule', formatRepeatHint())]
+    });
+    return;
+  }
   const title = interaction.options.getString('title', true).trim();
   if (!title) {
     await interaction.reply({
@@ -243,7 +253,7 @@ export async function createReminderPreview(interaction) {
     dueAt,
     channelId: interaction.options.getChannel('channel', true).id,
     pingText: mentionable?.toString() || '',
-    repeat: interaction.options.getString('repeat') || 'once',
+    repeat,
     priority: interaction.options.getString('priority') || 'important',
     guildId: interaction.guildId,
     createdBy: interaction.user.id

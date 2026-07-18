@@ -39,9 +39,27 @@ export function parseReminderTime(input, now = Date.now()) {
   return utc;
 }
 
+export function normalizeRepeat(input) {
+  const value = String(input || 'once').trim().toLowerCase();
+  if (['once', 'daily', 'weekly', 'monthly'].includes(value)) return value;
+
+  const custom = value.match(/^(?:every\s+)?(\d+)\s*(m|min|minute|h|hr|hour|d|day|w|week)s?$/i);
+  if (!custom) return null;
+  const amount = Number(custom[1]);
+  if (!Number.isSafeInteger(amount) || amount < 1) return null;
+  const unitName = custom[2].toLowerCase();
+  const unit = unitName.startsWith('m') ? 'm'
+    : unitName.startsWith('h') ? 'h'
+      : unitName.startsWith('d') ? 'd'
+        : 'w';
+  return `${amount}${unit}`;
+}
+
 export function nextRepeatAt(from, repeat) {
   if (repeat === 'daily') return from + 86_400_000;
   if (repeat === 'weekly') return from + 604_800_000;
+  const customInterval = customRepeatIntervalMs(repeat);
+  if (customInterval) return from + customInterval;
   if (repeat !== 'monthly') return null;
 
   const ist = new Date(from + IST_OFFSET_MS);
@@ -57,13 +75,41 @@ export function nextRepeatAt(from, repeat) {
 }
 
 export function nextFutureRepeatAt(from, repeat, now = Date.now()) {
+  const fixedInterval = repeat === 'daily' ? 86_400_000
+    : repeat === 'weekly' ? 604_800_000
+      : customRepeatIntervalMs(repeat);
+  if (fixedInterval) {
+    const steps = Math.max(1, Math.floor((now - from) / fixedInterval) + 1);
+    return from + steps * fixedInterval;
+  }
   let next = nextRepeatAt(from, repeat);
   while (next !== null && next <= now) next = nextRepeatAt(next, repeat);
   return next;
 }
 
+function customRepeatIntervalMs(repeat) {
+  const custom = normalizeRepeat(repeat)?.match(/^(\d+)([mhdw])$/);
+  if (!custom) return null;
+  const amount = Number(custom[1]);
+  const unitMs = custom[2] === 'm' ? 60_000
+    : custom[2] === 'h' ? 3_600_000
+      : custom[2] === 'd' ? 86_400_000
+        : 604_800_000;
+  return amount * unitMs;
+}
+
 export function formatRepeat(repeat) {
-  return ({ once: 'Once', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' })[repeat] || 'Once';
+  const named = ({ once: 'Once', daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' })[repeat];
+  if (named) return named;
+  const custom = normalizeRepeat(repeat)?.match(/^(\d+)([mhdw])$/);
+  if (!custom) return 'Once';
+  const amount = Number(custom[1]);
+  const unit = ({ m: 'minute', h: 'hour', d: 'day', w: 'week' })[custom[2]];
+  return `Every ${amount} ${unit}${amount === 1 ? '' : 's'}`;
+}
+
+export function formatRepeatHint() {
+  return 'Use `once`, `daily`, `weekly`, `monthly`, or a custom interval such as `2h`, `4d`, `2week`, or `every 4d`.';
 }
 
 export function formatPriority(priority) {

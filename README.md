@@ -122,6 +122,11 @@ reminders re-ping once after 15 minutes; critical reminders re-ping after 10 and
 after restart, recurring reminders advance automatically, and the dashboard
 refreshes every 30 seconds.
 
+The `repeat` option also supports custom intervals such as `2h`, `4d`, `2w`,
+`2week`, and `every 4d`. Custom recurrence is calculated from the scheduled
+occurrence, so snoozing or restarting the bot does not gradually shift its
+original cycle.
+
 ## Bot Status
 
 Deploy the command once. Server admins can configure or update monitored bots at runtime:

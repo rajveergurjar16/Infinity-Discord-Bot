@@ -1,5 +1,6 @@
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeRepeat } from './reminderTime.js';
 
 const storePath = path.resolve('data', 'reminders.json');
 const temporaryPath = `${storePath}.tmp`;
@@ -21,7 +22,7 @@ function normalizeReminder(reminder) {
     title: reminder.title,
     details: typeof reminder.details === 'string' ? reminder.details : '',
     pingText: typeof reminder.pingText === 'string' ? reminder.pingText : '',
-    repeat: ['once', 'daily', 'weekly', 'monthly'].includes(reminder.repeat) ? reminder.repeat : 'once',
+    repeat: normalizeRepeat(reminder.repeat) || 'once',
     priority: ['normal', 'important', 'critical'].includes(reminder.priority) ? reminder.priority : 'normal',
     dueAt: reminder.dueAt,
     occurrenceAt: Number.isFinite(reminder.occurrenceAt) ? reminder.occurrenceAt : reminder.dueAt,
