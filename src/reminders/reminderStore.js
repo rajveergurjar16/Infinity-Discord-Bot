@@ -1,10 +1,8 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import { normalizeRepeat } from './reminderTime.js';
+import { mutateStoreDocument, readStoreDocument } from '../database/storeRepository.js';
 
-const storePath = path.resolve('data', 'reminders.json');
-const temporaryPath = `${storePath}.tmp`;
-let mutationQueue = Promise.resolve();
+const STORE_KEY = 'reminders';
+const defaults = { reminders: [], panels: [] };
 
 function normalizeReminder(reminder) {
   if (
@@ -59,38 +57,10 @@ function normalizeStore(value) {
   return { reminders, panels };
 }
 
-async function readStore() {
-  try {
-    return normalizeStore(JSON.parse(await readFile(storePath, 'utf8')));
-  } catch (error) {
-    if (error.code === 'ENOENT') return { reminders: [], panels: [] };
-    throw error;
-  }
-}
-
-async function writeStore(store) {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  await writeFile(temporaryPath, JSON.stringify(normalizeStore(store), null, 2), {
-    encoding: 'utf8',
-    mode: 0o600
-  });
-  await chmod(temporaryPath, 0o600);
-  await rename(temporaryPath, storePath);
-}
-
-function mutateStore(updater) {
-  const operation = mutationQueue.then(async () => {
-    const store = await readStore();
-    const result = await updater(store);
-    await writeStore(store);
-    return result;
-  });
-  mutationQueue = operation.catch(() => undefined);
-  return operation;
-}
+const readStore = () => readStoreDocument(STORE_KEY, defaults, normalizeStore);
+const mutateStore = (updater) => mutateStoreDocument(STORE_KEY, defaults, normalizeStore, updater);
 
 export async function getReminderStore() {
-  await mutationQueue;
   return readStore();
 }
 

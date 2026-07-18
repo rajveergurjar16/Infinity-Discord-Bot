@@ -1,41 +1,32 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import {
+  mutateStoreDocument,
+  readStoreDocument,
+  replaceStoreDocument
+} from '../database/storeRepository.js';
 
-const storePath = path.resolve('data', 'giveaways.json');
+const STORE_KEY = 'giveaways';
 
 const defaultStore = {
   giveaways: []
 };
 
-export async function getGiveawayStore() {
-  try {
-    const raw = await readFile(storePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return { ...defaultStore, ...parsed };
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return { ...defaultStore };
-  }
+function normalizeStore(value) {
+  return { giveaways: Array.isArray(value?.giveaways) ? value.giveaways : [] };
 }
 
+export const getGiveawayStore = () => readStoreDocument(STORE_KEY, defaultStore, normalizeStore);
+
 export async function saveGiveawayStore(store) {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
-  return store;
+  return replaceStoreDocument(STORE_KEY, defaultStore, normalizeStore, store);
 }
 
 export async function upsertGiveaway(giveaway) {
-  const store = await getGiveawayStore();
-  const index = store.giveaways.findIndex((item) => item.id === giveaway.id);
-
-  if (index === -1) {
-    store.giveaways.push(giveaway);
-  } else {
-    store.giveaways[index] = giveaway;
-  }
-
-  await saveGiveawayStore(store);
-  return giveaway;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const index = store.giveaways.findIndex((item) => item.id === giveaway.id);
+    if (index === -1) store.giveaways.push(giveaway);
+    else store.giveaways[index] = giveaway;
+    return giveaway;
+  });
 }
 
 export async function getGiveaway(id) {
@@ -44,25 +35,21 @@ export async function getGiveaway(id) {
 }
 
 export async function removeGiveaway(id) {
-  const store = await getGiveawayStore();
-  const nextGiveaways = store.giveaways.filter((giveaway) => giveaway.id !== id && giveaway.messageId !== id);
-
-  if (nextGiveaways.length !== store.giveaways.length) {
-    await saveGiveawayStore({ ...store, giveaways: nextGiveaways });
-  }
-
-  return store.giveaways.length - nextGiveaways.length;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const before = store.giveaways.length;
+    store.giveaways = store.giveaways.filter((giveaway) => giveaway.id !== id && giveaway.messageId !== id);
+    return before - store.giveaways.length;
+  });
 }
 
 export async function updateGiveaway(id, updater) {
-  const store = await getGiveawayStore();
-  const index = store.giveaways.findIndex((giveaway) => giveaway.id === id);
-  if (index === -1) return null;
-
-  const next = await updater(store.giveaways[index]);
-  store.giveaways[index] = next;
-  await saveGiveawayStore(store);
-  return next;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, async (store) => {
+    const index = store.giveaways.findIndex((giveaway) => giveaway.id === id);
+    if (index === -1) return null;
+    const next = await updater(store.giveaways[index]);
+    store.giveaways[index] = next;
+    return next;
+  });
 }
 
 export async function listGiveaways() {
@@ -71,16 +58,13 @@ export async function listGiveaways() {
 }
 
 export async function pruneGiveaways({ endedBefore }) {
-  const store = await getGiveawayStore();
-  const nextGiveaways = store.giveaways.filter((giveaway) => {
-    if (giveaway.status === 'active') return true;
-    const finishedAt = giveaway.endedAt ?? giveaway.endsAt ?? giveaway.startedAt ?? 0;
-    return finishedAt >= endedBefore;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const before = store.giveaways.length;
+    store.giveaways = store.giveaways.filter((giveaway) => {
+      if (giveaway.status === 'active') return true;
+      const finishedAt = giveaway.endedAt ?? giveaway.endsAt ?? giveaway.startedAt ?? 0;
+      return finishedAt >= endedBefore;
+    });
+    return before - store.giveaways.length;
   });
-
-  if (nextGiveaways.length !== store.giveaways.length) {
-    await saveGiveawayStore({ ...store, giveaways: nextGiveaways });
-  }
-
-  return store.giveaways.length - nextGiveaways.length;
 }

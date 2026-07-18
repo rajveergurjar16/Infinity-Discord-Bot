@@ -4,9 +4,9 @@ import {
   SlashCommandBuilder
 } from 'discord.js';
 import {
-  getAutoPingConfig,
-  removeAutoPingConfig,
-  setAutoPingConfig
+  addAutoPingConfig,
+  listAutoPingConfigs,
+  removeAutoPingConfig
 } from '../autoping/autoPingStore.js';
 import { privateCv2Flags, simpleContainer } from '../ui/cv2.js';
 
@@ -17,22 +17,34 @@ function privateReply(title, body) {
   };
 }
 
+function channelOption(subcommand, description) {
+  return subcommand.addChannelOption((option) => option
+    .setName('channel')
+    .setDescription(description)
+    .addChannelTypes(ChannelType.GuildText)
+    .setRequired(true));
+}
+
 export const autoPingCommand = {
   data: new SlashCommandBuilder()
     .setName('autoping')
-    .setDescription('Configure a temporary ping for every new member.')
+    .setDescription('Configure temporary new-member pings in multiple channels.')
     .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
-    .addChannelOption((option) =>
-      option
-        .setName('channel')
-        .setDescription('Channel where new members should be pinged.')
-        .addChannelTypes(ChannelType.GuildText)
-    )
-    .addBooleanOption((option) =>
-      option
-        .setName('disable')
-        .setDescription('Disable automatic new-member pings in this server.')
-    ),
+    .addSubcommand((subcommand) => channelOption(
+      subcommand
+        .setName('add')
+        .setDescription('Add an auto-ping channel.'),
+      'Channel where every new member should be pinged.'
+    ))
+    .addSubcommand((subcommand) => channelOption(
+      subcommand
+        .setName('remove')
+        .setDescription('Remove one auto-ping channel.'),
+      'Configured auto-ping channel to remove.'
+    ))
+    .addSubcommand((subcommand) => subcommand
+      .setName('list')
+      .setDescription('List every configured auto-ping channel.')),
 
   async execute(interaction) {
     if (!interaction.inGuild() || !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
@@ -40,25 +52,26 @@ export const autoPingCommand = {
       return;
     }
 
-    const disable = interaction.options.getBoolean('disable') === true;
-    const channel = interaction.options.getChannel('channel');
-
-    if (disable) {
-      const removed = await removeAutoPingConfig(interaction.guildId);
+    const action = interaction.options.getSubcommand(true);
+    if (action === 'list') {
+      const settings = await listAutoPingConfigs(interaction.guildId);
       await interaction.reply(privateReply(
-        'Auto-Ping Disabled',
-        removed ? 'New members will no longer be pinged.' : 'Auto-ping was already disabled in this server.'
+        'Auto-Ping Channels',
+        settings.length
+          ? settings.map((setting, index) => `${index + 1}. <#${setting.channelId}>`).join('\n')
+          : 'No auto-ping channels are configured in this server.'
       ));
       return;
     }
 
-    if (!channel) {
-      const current = await getAutoPingConfig(interaction.guildId);
+    const channel = interaction.options.getChannel('channel', true);
+    if (action === 'remove') {
+      const removed = await removeAutoPingConfig(interaction.guildId, channel.id);
       await interaction.reply(privateReply(
-        'Auto-Ping Configuration',
-        current
-          ? `New members are currently pinged in <#${current.channelId}>.\n-# Set another channel or use \`/autoping disable:true\`.`
-          : 'Choose a channel to enable it: `/autoping channel:#channel`.'
+        removed ? 'Auto-Ping Channel Removed' : 'Channel Not Configured',
+        removed
+          ? `${channel} will no longer receive new-member pings.`
+          : `${channel} was not present in the auto-ping list.`
       ));
       return;
     }
@@ -72,10 +85,10 @@ export const autoPingCommand = {
       return;
     }
 
-    await setAutoPingConfig(interaction.guildId, channel.id, interaction.user.id);
+    const result = await addAutoPingConfig(interaction.guildId, channel.id, interaction.user.id);
     await interaction.reply(privateReply(
-      'Auto-Ping Enabled',
-      `Every new member will be pinged separately in ${channel}, then the ping message will be deleted automatically.`
+      result.created ? 'Auto-Ping Channel Added' : 'Auto-Ping Channel Updated',
+      `${channel} will receive a separate welcome ping for every new member, deleted automatically after delivery.`
     ));
   }
 };

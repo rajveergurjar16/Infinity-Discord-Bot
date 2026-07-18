@@ -1,55 +1,46 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import {
+  mutateStoreDocument,
+  readStoreDocument,
+  replaceStoreDocument
+} from '../database/storeRepository.js';
 
-const storePath = path.resolve('data', 'auto-replies.json');
+const STORE_KEY = 'auto-replies';
 
 const defaultStore = {
   rules: [],
   whitelist: []
 };
 
-export async function getAutoReplyStore() {
-  try {
-    const raw = await readFile(storePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return { ...defaultStore, ...parsed };
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return { ...defaultStore };
-  }
+function normalizeStore(value) {
+  return {
+    rules: Array.isArray(value?.rules) ? value.rules : [],
+    whitelist: Array.isArray(value?.whitelist) ? value.whitelist : []
+  };
 }
 
+export const getAutoReplyStore = () => readStoreDocument(STORE_KEY, defaultStore, normalizeStore);
+
 export async function saveAutoReplyStore(store) {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  await writeFile(storePath, JSON.stringify(store, null, 2), 'utf8');
-  return store;
+  return replaceStoreDocument(STORE_KEY, defaultStore, normalizeStore, store);
 }
 
 export async function addAutoReplyRule(rule) {
-  const store = await getAutoReplyStore();
-  const existingIndex = store.rules.findIndex(
-    (item) => item.guildId === rule.guildId && item.trigger.toLowerCase() === rule.trigger.toLowerCase()
-  );
-
-  if (existingIndex === -1) {
-    store.rules.push(rule);
-  } else {
-    store.rules[existingIndex] = { ...store.rules[existingIndex], ...rule };
-  }
-
-  await saveAutoReplyStore(store);
-  return rule;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const existingIndex = store.rules.findIndex(
+      (item) => item.guildId === rule.guildId && item.trigger.toLowerCase() === rule.trigger.toLowerCase()
+    );
+    if (existingIndex === -1) store.rules.push(rule);
+    else store.rules[existingIndex] = { ...store.rules[existingIndex], ...rule };
+    return rule;
+  });
 }
 
 export async function removeAutoReplyRule(guildId, id) {
-  const store = await getAutoReplyStore();
-  const nextRules = store.rules.filter((rule) => !(rule.guildId === guildId && rule.id === id));
-
-  if (nextRules.length !== store.rules.length) {
-    await saveAutoReplyStore({ ...store, rules: nextRules });
-  }
-
-  return store.rules.length - nextRules.length;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const before = store.rules.length;
+    store.rules = store.rules.filter((rule) => !(rule.guildId === guildId && rule.id === id));
+    return before - store.rules.length;
+  });
 }
 
 export async function listAutoReplyRules(guildId) {
@@ -58,26 +49,19 @@ export async function listAutoReplyRules(guildId) {
 }
 
 export async function addAutoReplyWhitelistUser(guildId, userId) {
-  const store = await getAutoReplyStore();
-  const exists = store.whitelist.some((item) => item.guildId === guildId && item.userId === userId);
-
-  if (!exists) {
-    store.whitelist.push({ guildId, userId, addedAt: Date.now() });
-    await saveAutoReplyStore(store);
-  }
-
-  return { guildId, userId };
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const exists = store.whitelist.some((item) => item.guildId === guildId && item.userId === userId);
+    if (!exists) store.whitelist.push({ guildId, userId, addedAt: Date.now() });
+    return { guildId, userId };
+  });
 }
 
 export async function removeAutoReplyWhitelistUser(guildId, userId) {
-  const store = await getAutoReplyStore();
-  const nextWhitelist = store.whitelist.filter((item) => !(item.guildId === guildId && item.userId === userId));
-
-  if (nextWhitelist.length !== store.whitelist.length) {
-    await saveAutoReplyStore({ ...store, whitelist: nextWhitelist });
-  }
-
-  return store.whitelist.length - nextWhitelist.length;
+  return mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, (store) => {
+    const before = store.whitelist.length;
+    store.whitelist = store.whitelist.filter((item) => !(item.guildId === guildId && item.userId === userId));
+    return before - store.whitelist.length;
+  });
 }
 
 export async function listAutoReplyWhitelist(guildId) {

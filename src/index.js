@@ -1,5 +1,6 @@
 import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { config } from './config.js';
+import { closeDatabase, connectDatabase } from './database/mongo.js';
 import { ticketCommand } from './commands/ticket.js';
 import { statusLogCommand } from './commands/statusLog.js';
 import { statusPanelCommand } from './commands/statusPanel.js';
@@ -281,7 +282,27 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-await client.login(config.token);
+await connectDatabase();
+
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`Received ${signal}; shutting down.`);
+  client.destroy();
+  await closeDatabase().catch((error) => console.error('Database shutdown error:', error));
+  process.exit(0);
+}
+
+process.once('SIGINT', () => void shutdown('SIGINT'));
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+
+try {
+  await client.login(config.token);
+} catch (error) {
+  await closeDatabase().catch(() => {});
+  throw error;
+}
 
 function userErrorMessage(error) {
   if (error?.code === 50013) {

@@ -1,9 +1,7 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { mutateStoreDocument, readStoreDocument } from '../database/storeRepository.js';
 
-const registryPath = path.resolve('data', 'status-bots.json');
-const temporaryPath = `${registryPath}.tmp`;
-let mutationQueue = Promise.resolve();
+const STORE_KEY = 'status-bots';
+const defaults = { bots: [], panels: [] };
 
 function normalizedStore(value) {
   const bots = Array.isArray(value?.bots) ? value.bots : [];
@@ -52,43 +50,14 @@ function normalizedStore(value) {
   };
 }
 
-async function readStore() {
-  try {
-    return normalizedStore(JSON.parse(await readFile(registryPath, 'utf8')));
-  } catch (error) {
-    if (error.code === 'ENOENT') return { bots: [] };
-    throw error;
-  }
-}
-
-async function writeStore(store) {
-  await mkdir(path.dirname(registryPath), { recursive: true });
-  await writeFile(temporaryPath, JSON.stringify(normalizedStore(store), null, 2), {
-    encoding: 'utf8',
-    mode: 0o600
-  });
-  await chmod(temporaryPath, 0o600);
-  await rename(temporaryPath, registryPath);
-}
-
-function mutateStore(updater) {
-  const operation = mutationQueue.then(async () => {
-    const store = await readStore();
-    const result = await updater(store);
-    await writeStore(store);
-    return result;
-  });
-  mutationQueue = operation.catch(() => undefined);
-  return operation;
-}
+const readStore = () => readStoreDocument(STORE_KEY, defaults, normalizedStore);
+const mutateStore = (updater) => mutateStoreDocument(STORE_KEY, defaults, normalizedStore, updater);
 
 export async function listStatusBots() {
-  await mutationQueue;
   return (await readStore()).bots;
 }
 
 export async function listStatusPanels() {
-  await mutationQueue;
   return (await readStore()).panels;
 }
 

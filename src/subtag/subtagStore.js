@@ -1,9 +1,6 @@
-import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { mutateStoreDocument, readStoreDocument } from '../database/storeRepository.js';
 
-const storePath = path.resolve('data', 'subtag-settings.json');
-const temporaryPath = `${storePath}.tmp`;
-let mutationQueue = Promise.resolve();
+const STORE_KEY = 'subtag-settings';
 
 const defaults = {
   adopt: {
@@ -29,6 +26,7 @@ const defaults = {
     imageUrl: null
   }
 };
+const defaultStore = { guilds: {} };
 
 function normalizeTemplate(value, type) {
   const fallback = defaults[type];
@@ -60,38 +58,10 @@ function normalizeStore(value) {
   return { guilds };
 }
 
-async function readStore() {
-  try {
-    return normalizeStore(JSON.parse(await readFile(storePath, 'utf8')));
-  } catch (error) {
-    if (error.code === 'ENOENT') return { guilds: {} };
-    throw error;
-  }
-}
-
-async function writeStore(store) {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  await writeFile(temporaryPath, JSON.stringify(normalizeStore(store), null, 2), {
-    encoding: 'utf8',
-    mode: 0o600
-  });
-  await chmod(temporaryPath, 0o600);
-  await rename(temporaryPath, storePath);
-}
-
-function mutateStore(updater) {
-  const operation = mutationQueue.then(async () => {
-    const store = await readStore();
-    const result = await updater(store);
-    await writeStore(store);
-    return result;
-  });
-  mutationQueue = operation.catch(() => undefined);
-  return operation;
-}
+const readStore = () => readStoreDocument(STORE_KEY, defaultStore, normalizeStore);
+const mutateStore = (updater) => mutateStoreDocument(STORE_KEY, defaultStore, normalizeStore, updater);
 
 export async function getSubtagSettings(guildId) {
-  await mutationQueue;
   const store = await readStore();
   const saved = store.guilds[guildId];
   return {

@@ -19,6 +19,8 @@ GUILD_ID=your_server_id
 OWNER_IDS=your_discord_user_id
 DEVELOPER_IDS=developer_id_1,developer_id_2
 PREFIX=?
+MONGO_URI=mongodb+srv://...
+MONGO_DB_NAME=infinity
 ```
 
 3. Deploy slash commands:
@@ -40,11 +42,35 @@ Enable **Server Members Intent** for the bot in Discord Developer Portal so memb
 Members with **Manage Server** can configure a temporary mention for every new member:
 
 ```text
-/autoping channel:#register-here
-/autoping disable:true
+/autoping add channel:#register-here
+/autoping add channel:#welcome
+/autoping remove channel:#welcome
+/autoping list
 ```
 
-Each member receives a separate `Welcome!! @user` mention. The ping message is automatically deleted shortly after it is sent, while Discord may retain the mention notification or unread badge according to the recipient's client and notification settings. Settings are saved per server in `data/auto-ping.json`.
+Each configured channel receives a separate `Welcome!! @user` mention. The ping
+message is automatically deleted shortly after it is sent, while Discord may
+retain the mention notification or unread badge according to the recipient's
+client and notification settings. Settings are shared through MongoDB.
+
+## MongoDB Persistence
+
+All runtime configuration and state is stored in the `stores` collection of the
+configured MongoDB database. This includes auto-pings, auto-replies,
+auto-reactions, giveaways, invite dashboards, reminders, status monitors,
+server-tag settings, and ticket settings. Local and VPS instances therefore use
+the same data. Concurrent updates use version checks and retries to avoid silent
+cross-instance overwrites.
+
+To import an old `data/` backup once:
+
+```bash
+npm run migrate:data -- --archive archive.tar.gz --force
+```
+
+Omit `--force` to insert only stores that do not already exist. Ticket transcript
+`.txt` exports remain local files because they are generated downloads, not bot
+configuration.
 
 ## Auto Reactions
 
@@ -72,7 +98,7 @@ It opens a live embed preview with:
 - staff role selector
 - Send Panel and Cancel buttons
 
-Ticket settings are saved in `data/ticket-settings.json`.
+Ticket settings are saved in MongoDB.
 Running `/ticket panel` again reloads the saved setup. The final button becomes
 **Update Panel** after deployment and edits the existing public panel instead of
 creating a duplicate. You can add or remove ticket types at any time.
@@ -121,7 +147,7 @@ Relative times (`10m`, `2h`, `3d`, `1w`) and absolute IST dates
 an ephemeral Confirm/Edit/Cancel preview. Due reminders are delivered publicly
 with Mark Done, Snooze 10m, Snooze 1h, Tomorrow, and Cancel buttons. Important
 reminders re-ping once after 15 minutes; critical reminders re-ping after 10 and
-30 minutes. State is saved in `data/reminders.json`, missed reminders recover
+30 minutes. State is saved in MongoDB, missed reminders recover
 after restart, recurring reminders advance automatically, and the dashboard
 refreshes every 30 seconds.
 
@@ -149,7 +175,7 @@ Infinity's highest role and Infinity needs **Manage Roles** permission.
 Supported placeholders are `{user}`,
 `{displayname}`, `{username}`, `{userid}`, `{tag}`, `{server}`,
 `{membercount}`, and `{avatar}`. Settings persist in
-`data/subtag-settings.json`.
+MongoDB.
 
 The optional normal message is sent above the embed. Mentions placed there—or
 generated with `{user}`—can send actual notifications. Mentions are suppressed
@@ -170,7 +196,7 @@ Deploy the command once. Server admins can configure or update monitored bots at
 /statuspanel channel:#bot-status
 ```
 
-Infinity resolves the monitored bot's server display name and logo from its Discord user ID. Animated Discord avatars remain GIFs; static avatars use lossless PNG. It checks each configured API every second with a 900ms request timeout. Five consecutive non-online checks are required before an Offline alert. The online duration stops at the first failed check, and the offline duration starts from that same first-failure timestamp. A successful check before failure five cancels the pending outage; the first successful check after a confirmed outage sends the Online recovery alert. The optional `pinguser` value is shown below the alert and may contain normal text, user mentions, role mentions, `@everyone`, `@here`, or a mixture. Registry changes are saved in `data/status-bots.json` and take effect immediately without editing `.env` or restarting Infinity. Reusing the same user ID updates its endpoint, key, channel, notification text, display identity, and current baseline.
+Infinity resolves the monitored bot's server display name and logo from its Discord user ID. Animated Discord avatars remain GIFs; static avatars use lossless PNG. It checks each configured API every second with a 900ms request timeout. Five consecutive non-online checks are required before an Offline alert. The online duration stops at the first failed check, and the offline duration starts from that same first-failure timestamp. A successful check before failure five cancels the pending outage; the first successful check after a confirmed outage sends the Online recovery alert. The optional `pinguser` value is shown below the alert and may contain normal text, user mentions, role mentions, `@everyone`, `@here`, or a mixture. Registry changes are saved in MongoDB and take effect immediately without editing `.env` or restarting Infinity. Reusing the same user ID updates its endpoint, key, channel, notification text, display identity, and current baseline.
 
 ## Giveaway System
 
@@ -190,7 +216,7 @@ The giveaway system is reaction based:
 - winners are picked from reaction users
 - persistent auto-end after restart
 
-Giveaways are saved in `data/giveaways.json`.
+Giveaways are saved in MongoDB.
 
 ## Steal Prefix Command
 

@@ -6,10 +6,12 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "deploy": "node src/deploy-commands.js"
+    "deploy": "node src/deploy-commands.js",
+    "migrate:data": "node scripts/migrate-json-to-mongo.js"
   },
   "dependencies": {
     "discord.js": "^14.26.5",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "mongodb": "^7.5.0"
   }
 }

@@ -1,7 +1,10 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import {
+  mutateStoreDocument,
+  readStoreDocument,
+  replaceStoreDocument
+} from '../database/storeRepository.js';
 
-const settingsPath = path.resolve('data', 'ticket-settings.json');
+const STORE_KEY = 'ticket-settings';
 
 const defaultSettings = {
   categoryId: null,
@@ -23,25 +26,26 @@ const defaultSettings = {
   types: []
 };
 
-export async function getTicketSettings() {
-  try {
-    const raw = await readFile(settingsPath, 'utf8');
-    return { ...defaultSettings, ...JSON.parse(raw) };
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return { ...defaultSettings };
-  }
+function normalizeSettings(value) {
+  return {
+    ...defaultSettings,
+    ...(value && typeof value === 'object' ? value : {}),
+    staffRoleIds: Array.isArray(value?.staffRoleIds) ? value.staffRoleIds : [],
+    types: Array.isArray(value?.types) ? value.types : []
+  };
 }
 
+export const getTicketSettings = () => readStoreDocument(STORE_KEY, defaultSettings, normalizeSettings);
+
 export async function saveTicketSettings(settings) {
-  await mkdir(path.dirname(settingsPath), { recursive: true });
-  await writeFile(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
-  return settings;
+  return replaceStoreDocument(STORE_KEY, defaultSettings, normalizeSettings, settings);
 }
 
 export async function updateTicketSettings(patch) {
-  const current = await getTicketSettings();
-  return saveTicketSettings({ ...current, ...patch });
+  return mutateStoreDocument(STORE_KEY, defaultSettings, normalizeSettings, (settings) => {
+    Object.assign(settings, patch);
+    return normalizeSettings(settings);
+  });
 }
 
 export function isTicketReady(settings) {
