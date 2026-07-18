@@ -164,7 +164,10 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
-    if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('subtag_editor_select:')) {
+    if (
+      (interaction.isChannelSelectMenu() || interaction.isRoleSelectMenu()) &&
+      interaction.customId.startsWith('subtag_editor_select:')
+    ) {
       const handled = await handleSubtagInteraction(interaction);
       if (handled) return;
     }

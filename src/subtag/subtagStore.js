@@ -48,6 +48,7 @@ function normalizeStore(value) {
     for (const [guildId, settings] of Object.entries(value.guilds)) {
       if (!/^\d{17,20}$/.test(guildId)) continue;
       guilds[guildId] = {
+        roleId: typeof settings?.roleId === 'string' ? settings.roleId : null,
         adopt: normalizeTemplate(settings?.adopt, 'adopt'),
         remove: normalizeTemplate(settings?.remove, 'remove')
       };
@@ -91,19 +92,22 @@ export async function getSubtagSettings(guildId) {
   const store = await readStore();
   const saved = store.guilds[guildId];
   return {
+    roleId: typeof saved?.roleId === 'string' ? saved.roleId : null,
     adopt: normalizeTemplate(saved?.adopt, 'adopt'),
     remove: normalizeTemplate(saved?.remove, 'remove')
   };
 }
 
-export function saveSubtagTemplate(guildId, type, template) {
+export function saveSubtagTemplate(guildId, type, template, roleId = null) {
   return mutateStore((store) => {
     const current = store.guilds[guildId] || {
+      roleId: null,
       adopt: normalizeTemplate(null, 'adopt'),
       remove: normalizeTemplate(null, 'remove')
     };
     current[type] = normalizeTemplate(template, type);
+    current.roleId = typeof roleId === 'string' ? roleId : null;
     store.guilds[guildId] = current;
-    return current[type];
+    return { template: current[type], roleId: current.roleId };
   });
 }

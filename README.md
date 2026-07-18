@@ -138,7 +138,11 @@ Only server administrators can configure profile server-tag notifications:
 
 Each command opens an ephemeral embed preview. Admins can edit the title,
 message, color, footer, thumbnail, large image, notification channel, and
-enabled state before saving. Supported placeholders are `{user}`,
+enabled state before saving. A shared reward role can also be selected from
+either editor. Infinity adds it when a member adopts the server tag and removes
+it when the member disables or switches the tag. The selected role must be below
+Infinity's highest role and Infinity needs **Manage Roles** permission.
+Supported placeholders are `{user}`,
 `{displayname}`, `{username}`, `{userid}`, `{tag}`, `{server}`,
 `{membercount}`, and `{avatar}`. Settings persist in
 `data/subtag-settings.json`.

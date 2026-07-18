@@ -7,6 +7,7 @@ import {
   EmbedBuilder,
   ModalBuilder,
   PermissionFlagsBits,
+  RoleSelectMenuBuilder,
   StringSelectMenuBuilder,
   TextInputBuilder,
   TextInputStyle
@@ -85,6 +86,16 @@ function editorComponents(type, template) {
             label: 'Select Channel',
             description: 'Choose where this notification is sent.',
             value: 'channel'
+          },
+          {
+            label: 'Select Reward Role',
+            description: 'Role added on adopt and removed with the tag.',
+            value: 'role'
+          },
+          {
+            label: 'Clear Reward Role',
+            description: 'Stop automatic role add/remove.',
+            value: 'clear_role'
           }
         ])
     ),
@@ -108,7 +119,7 @@ function editorComponents(type, template) {
 function editorPayload(interaction, type, template) {
   const state = template.enabled ? 'Enabled' : 'Disabled';
   return {
-    content: `**${type === 'adopt' ? 'Tag Adopted' : 'Tag Removed'} notification** — ${state}\nChannel: ${template.channelId ? `<#${template.channelId}>` : 'Not selected'}\n-# Placeholders: {user}, {displayname}, {username}, {userid}, {tag}, {server}, {membercount}, {avatar}`,
+    content: `**${type === 'adopt' ? 'Tag Adopted' : 'Tag Removed'} notification** — ${state}\nChannel: ${template.channelId ? `<#${template.channelId}>` : 'Not selected'}\nReward role: ${template.roleId ? `<@&${template.roleId}>` : 'Not selected'}\n-# Placeholders: {user}, {displayname}, {username}, {userid}, {tag}, {server}, {membercount}, {avatar}`,
     embeds: [buildTemplateEmbed(template, previewContext(interaction))],
     components: editorComponents(type, template),
     flags: 64
@@ -130,7 +141,8 @@ export async function openSubtagEditor(interaction, type) {
   const settings = await getSubtagSettings(interaction.guildId);
   const draft = {
     ...settings[type],
-    channelId: settings[type].channelId || interaction.channelId
+    channelId: settings[type].channelId || interaction.channelId,
+    roleId: settings.roleId
   };
   editors.set(editorKey(interaction.guildId, interaction.user.id, type), {
     draft,
@@ -243,13 +255,36 @@ export async function handleSubtagInteraction(interaction) {
       });
       return true;
     }
+    if (action === 'role') {
+      await interaction.update({
+        content: 'Select the role that should be added on tag adoption and removed when the tag is removed.',
+        embeds: [],
+        components: [new ActionRowBuilder().addComponents(
+          new RoleSelectMenuBuilder()
+            .setCustomId(`subtag_editor_select:role:${type}`)
+            .setPlaceholder('Select tag reward role')
+            .setMinValues(1)
+            .setMaxValues(1)
+        )]
+      });
+      return true;
+    }
+    if (action === 'clear_role') {
+      editor.draft.roleId = null;
+      await interaction.update(editorUpdatePayload(interaction, type, editor.draft));
+      return true;
+    }
   }
 
-  if (interaction.isChannelSelectMenu() && interaction.customId.startsWith('subtag_editor_select:channel:')) {
-    const type = interaction.customId.split(':')[2];
+  if (
+    (interaction.isChannelSelectMenu() || interaction.isRoleSelectMenu()) &&
+    interaction.customId.startsWith('subtag_editor_select:')
+  ) {
+    const [, target, type] = interaction.customId.split(':');
     const editor = getEditor(interaction, type);
     if (!editor) return expireEditor(interaction);
-    editor.draft.channelId = interaction.values[0];
+    if (target === 'channel') editor.draft.channelId = interaction.values[0];
+    if (target === 'role') editor.draft.roleId = interaction.values[0];
     await interaction.update(editorUpdatePayload(interaction, type, editor.draft));
     return true;
   }
@@ -305,10 +340,23 @@ export async function handleSubtagInteraction(interaction) {
         });
         return true;
       }
-      const saved = await saveSubtagTemplate(interaction.guildId, type, editor.draft);
+      if (editor.draft.roleId) {
+        const role = await interaction.guild.roles.fetch(editor.draft.roleId).catch(() => null);
+        if (!role || role.id === interaction.guildId || role.managed || !role.editable) {
+          await interaction.reply({
+            flags: privateCv2Flags,
+            components: [simpleContainer(
+              'Role Cannot Be Managed',
+              'Choose a normal role below Infinity’s highest role and make sure Infinity has **Manage Roles** permission.'
+            )]
+          });
+          return true;
+        }
+      }
+      const saved = await saveSubtagTemplate(interaction.guildId, type, editor.draft, editor.draft.roleId);
       editors.delete(editorKey(interaction.guildId, interaction.user.id, type));
       await interaction.update({
-        content: `**Subtag notification saved.**\n${type === 'adopt' ? 'Adopt' : 'Remove'} notifications are ${saved.enabled ? `enabled in <#${saved.channelId}>` : 'disabled'}.`,
+        content: `**Subtag configuration saved.**\n${type === 'adopt' ? 'Adopt' : 'Remove'} notifications are ${saved.template.enabled ? `enabled in <#${saved.template.channelId}>` : 'disabled'}.\nReward role: ${saved.roleId ? `<@&${saved.roleId}>` : 'Not selected'}.`,
         embeds: [],
         components: []
       });
@@ -355,11 +403,26 @@ export async function handleSubtagUserUpdate(oldUser, newUser, client) {
     const type = isActive ? 'adopt' : 'remove';
     const settings = await getSubtagSettings(guildId);
     const template = settings[type];
+    const member = guild.members.cache.get(newUser.id) || await guild.members.fetch(newUser.id).catch(() => null);
+    if (!member) continue;
+    if (settings.roleId) {
+      try {
+        if (isActive) await member.roles.add(settings.roleId, 'Member adopted the server tag');
+        else await member.roles.remove(settings.roleId, 'Member removed the server tag');
+      } catch (error) {
+        console.warn('Subtag reward role update failed:', {
+          guildId,
+          userId: newUser.id,
+          roleId: settings.roleId,
+          action: isActive ? 'add' : 'remove',
+          code: error?.code,
+          message: error?.message
+        });
+      }
+    }
     if (!template.enabled || !template.channelId) continue;
     const channel = await guild.channels.fetch(template.channelId).catch(() => null);
     if (!channel?.isTextBased() || typeof channel.send !== 'function') continue;
-    const member = guild.members.cache.get(newUser.id) || await guild.members.fetch(newUser.id).catch(() => null);
-    if (!member) continue;
     const primaryGuild = isActive ? newUser.primaryGuild : oldUser.primaryGuild;
     const context = {
       user: `<@${newUser.id}>`,
