@@ -78,6 +78,15 @@ export function upsertInviteApp(app) {
   });
 }
 
+export function removeInviteApp(userId) {
+  return mutateStore((store) => {
+    const index = store.apps.findIndex((item) => item.userId === userId);
+    if (index === -1) return null;
+    const [removed] = store.apps.splice(index, 1);
+    return removed;
+  });
+}
+
 export function upsertInvitePanel(panel) {
   return mutateStore((store) => {
     const index = store.panels.findIndex((item) => item.guildId === panel.guildId);

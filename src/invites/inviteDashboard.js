@@ -1,16 +1,17 @@
 import {
+  ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
   ContainerBuilder,
   MessageFlags,
   PermissionsBitField,
-  PermissionFlagsBits,
   SectionBuilder,
   SeparatorBuilder,
   SeparatorSpacingSize,
-  TextDisplayBuilder
+  TextDisplayBuilder,
+  ThumbnailBuilder
 } from 'discord.js';
-import { getInviteStore, upsertInviteApp, upsertInvitePanel } from './inviteRegistry.js';
+import { getInviteStore, removeInviteApp, upsertInviteApp, upsertInvitePanel } from './inviteRegistry.js';
 import { cv2Flags, privateCv2Flags, simpleContainer } from '../ui/cv2.js';
 
 function safeName(name) {
@@ -25,16 +26,6 @@ function parsePermissions(value) {
     throw new Error('PERMISSIONS_OUT_OF_RANGE');
   }
   return permissions;
-}
-
-function permissionSummary(permissionValue) {
-  const permissions = new PermissionsBitField(permissionValue);
-  const names = Object.entries(PermissionFlagsBits)
-    .filter(([, bit]) => permissions.has(bit))
-    .map(([name]) => name);
-  if (!names.length) return 'No guild permissions requested';
-  if (names.length <= 4) return names.join(', ');
-  return `${names.slice(0, 4).join(', ')} +${names.length - 4} more`;
 }
 
 function inviteUrl(app) {
@@ -61,24 +52,24 @@ export function inviteDashboardPayload(apps) {
     container.addSeparatorComponents(
       new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
     );
-    const section = new SectionBuilder()
-      .addTextDisplayComponents(new TextDisplayBuilder().setContent([
-        `### ${safeName(app.name)}`,
-        permissionSummary(BigInt(app.permissions)),
-        `-# Application ID: ${app.userId}`
-      ].join('\n')))
-      .setButtonAccessory(
+    const nameDisplay = new TextDisplayBuilder().setContent(`### ${safeName(app.name)}`);
+    if (app.avatarUrl) {
+      container.addSectionComponents(
+        new SectionBuilder()
+          .addTextDisplayComponents(nameDisplay)
+          .setThumbnailAccessory(new ThumbnailBuilder().setURL(app.avatarUrl))
+      );
+    } else {
+      container.addTextDisplayComponents(nameDisplay);
+    }
+    container.addActionRowComponents(
+      new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setStyle(ButtonStyle.Link)
           .setLabel('Add App')
           .setURL(inviteUrl(app))
-      );
-    if (app.avatarUrl) {
-      // A CV2 section supports only one accessory. The invite action is more
-      // useful than a thumbnail, so show the directory logo in the text card
-      // only when Discord adds multi-accessory support.
-    }
-    container.addSectionComponents(section);
+      )
+    );
   }
 
   container.addSeparatorComponents(
@@ -103,7 +94,46 @@ async function updatePanel(client, panel, apps) {
   return replacement;
 }
 
+async function removeInviteDashboardApp(interaction) {
+  const userId = interaction.options.getString('user_id', true).trim();
+  if (!/^\d{17,20}$/.test(userId)) {
+    await interaction.reply({
+      flags: privateCv2Flags,
+      components: [simpleContainer('Invalid User ID', 'Provide the Discord user/application ID of a bot.')]
+    });
+    return;
+  }
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  const removed = await removeInviteApp(userId);
+  if (!removed) {
+    await interaction.editReply({
+      flags: privateCv2Flags,
+      components: [simpleContainer('Application Not Found', 'That bot is not present in the invite dashboard.')]
+    });
+    return;
+  }
+
+  const store = await getInviteStore();
+  await Promise.allSettled(
+    store.panels.map((panel) => updatePanel(interaction.client, panel, store.apps))
+  );
+  await interaction.editReply({
+    flags: privateCv2Flags,
+    components: [simpleContainer(
+      'Application Removed',
+      `**${removed.name}** was removed from every configured invite dashboard.`
+    )]
+  });
+}
+
 export async function configureInviteDashboard(interaction) {
+  const action = interaction.options.getSubcommand(false) || 'add';
+  if (action === 'remove') {
+    await removeInviteDashboardApp(interaction);
+    return;
+  }
+
   const userId = interaction.options.getString('user_id', true).trim();
   const permissionInput = interaction.options.getString('permissions', true);
   const targetChannel = interaction.options.getChannel('channel') ?? interaction.channel;
@@ -192,7 +222,7 @@ export async function configureInviteDashboard(interaction) {
     flags: privateCv2Flags,
     components: [simpleContainer(
       'Invite Dashboard Updated',
-      `**${user.globalName || user.username}** is available in ${targetChannel}.\nPermissions: \`${permissions}\``
+      `**${user.globalName || user.username}** is available in ${targetChannel}.`
     )]
   });
 }

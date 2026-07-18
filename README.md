@@ -92,11 +92,14 @@ Use `{separator}` inside the text to insert a small divider.
 Bot owners can add or update applications in a persistent invite dashboard:
 
 ```text
-/invite user_id:BOT_USER_ID permissions:PERMISSION_INTEGER channel:#bot-invites
+/invite add user_id:BOT_USER_ID permissions:PERMISSION_INTEGER channel:#bot-invites
+/invite remove user_id:BOT_USER_ID
 ```
 
 The command validates the bot ID and permission bitfield, then creates or updates
-one combined dashboard. Each entry contains an **Add App** button. Discord does
+one combined dashboard. Removing an application deletes it from every configured
+invite dashboard without kicking the bot from any server. Each entry shows the
+bot logo and an **Add App** button. Discord does
 not expose a reliable way to infer every permission a bot's code actually needs,
 so use the permission integer chosen for that application.
 
