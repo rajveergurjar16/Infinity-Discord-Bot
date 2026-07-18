@@ -9,6 +9,8 @@ import { autoReactCommand } from './commands/autoreact.js';
 import { autoReplyCommand } from './commands/autoreply.js';
 import { reactCommand } from './commands/react.js';
 import { autoPingCommand } from './commands/autoping.js';
+import { inviteCommand } from './commands/invite.js';
+import { reminderCommand } from './commands/reminder.js';
 import { handleAutoPingMemberJoin } from './autoping/autoPingService.js';
 import { handleAutoReactMessage, isBotOwner } from './autoreact/autoReactService.js';
 import { handleAutoReplyMessage } from './autoreply/autoReplyService.js';
@@ -38,6 +40,11 @@ import {
   requestCloseTicket
 } from './tickets/ticketService.js';
 import { privateCv2Flags, simpleContainer } from './ui/cv2.js';
+import { handleSayPrefix } from './say/sayService.js';
+import {
+  handleReminderInteraction,
+  startReminderScheduler
+} from './reminders/reminderService.js';
 
 const client = new Client({
   intents: [
@@ -58,14 +65,17 @@ const commands = new Map([
   [autoReactCommand.data.name, autoReactCommand],
   [autoReplyCommand.data.name, autoReplyCommand],
   [reactCommand.data.name, reactCommand],
-  [autoPingCommand.data.name, autoPingCommand]
+  [autoPingCommand.data.name, autoPingCommand],
+  [inviteCommand.data.name, inviteCommand],
+  [reminderCommand.data.name, reminderCommand]
 ]);
 
-const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel', 'autoping']);
+const publicCommands = new Set(['giveaway', 'ping', 'statuslog', 'statuspanel', 'autoping', 'reminder']);
 
 client.once(Events.ClientReady, (readyClient) => {
   console.log(`Logged in as ${readyClient.user.tag}`);
   startStatusMonitor(readyClient);
+  startReminderScheduler(readyClient);
   scheduleActiveGiveaways(readyClient).catch((error) => {
     console.error('Giveaway scheduler startup error:', error);
   });
@@ -76,6 +86,7 @@ client.on(Events.MessageCreate, async (message) => {
     await handleAutoReplyMessage(message);
     await handleAutoReactMessage(message);
 
+    if (await handleSayPrefix(message)) return;
     await handleStealPrefix(message);
   } catch (error) {
     console.error('Message handler error:', error);
@@ -116,6 +127,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       return;
     }
 
+    if (interaction.isModalSubmit() && interaction.customId.startsWith('reminder_')) {
+      const handled = await handleReminderInteraction(interaction);
+      if (handled) return;
+    }
+
     if (interaction.isModalSubmit() && interaction.customId.startsWith('steal_modal:')) {
       const handled = await handleStealModal(interaction);
       if (handled) return;
@@ -144,6 +160,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (handled) return;
     }
 
+    if (interaction.isStringSelectMenu() && interaction.customId.startsWith('reminder_panel:')) {
+      const handled = await handleReminderInteraction(interaction);
+      if (handled) return;
+    }
+
     if (interaction.isStringSelectMenu() && interaction.customId === 'ticket_editor:action') {
       await handleEditorAction(interaction);
       return;
@@ -168,6 +189,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (interaction.customId.startsWith('status_alert_delete:')) {
       const handled = await handleStatusInteraction(interaction);
+      if (handled) return;
+    }
+
+    if (
+      interaction.customId.startsWith('reminder_preview:') ||
+      interaction.customId.startsWith('reminder_action:')
+    ) {
+      const handled = await handleReminderInteraction(interaction);
       if (handled) return;
     }
 

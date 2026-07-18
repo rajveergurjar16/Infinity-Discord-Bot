@@ -7,6 +7,8 @@ const defaultSettings = {
   categoryId: null,
   logChannelId: null,
   panelChannelId: null,
+  panelMessageId: null,
+  deployedPanelChannelId: null,
   staffRoleIds: [],
   panelTitle: 'Support Tickets',
   panelDescription: 'Select the type of help you need from the menu below.',

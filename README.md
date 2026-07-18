@@ -16,6 +16,9 @@ npm install
 DISCORD_TOKEN=your_bot_token
 CLIENT_ID=your_application_id
 GUILD_ID=your_server_id
+OWNER_IDS=your_discord_user_id
+DEVELOPER_IDS=developer_id_1,developer_id_2
+PREFIX=?
 ```
 
 3. Deploy slash commands:
@@ -43,6 +46,13 @@ Members with **Manage Server** can configure a temporary mention for every new m
 
 Each member receives a separate `Welcome!! @user` mention. The ping message is automatically deleted shortly after it is sent, while Discord may retain the mention notification or unread badge according to the recipient's client and notification settings. Settings are saved per server in `data/auto-ping.json`.
 
+## Auto Reactions
+
+Running `/autoreact channel` or `/autoreact text` more than once for the same
+channel/text adds another emoji instead of replacing the existing one. Reusing
+the exact same target and emoji updates that rule without creating a duplicate.
+Each emoji has its own rule ID and can be removed independently.
+
 ## Ticket Panel Editor
 
 Use this command in Discord:
@@ -63,6 +73,54 @@ It opens a live embed preview with:
 - Send Panel and Cancel buttons
 
 Ticket settings are saved in `data/ticket-settings.json`.
+Running `/ticket panel` again reloads the saved setup. The final button becomes
+**Update Panel** after deployment and edits the existing public panel instead of
+creating a duplicate. You can add or remove ticket types at any time.
+
+## Developer Say Command
+
+Developers and owners can send an exact public Components v2 message:
+
+```text
+?say Your text with exact spaces and line breaks
+```
+
+Use `{separator}` inside the text to insert a small divider.
+
+## Bot Invite Dashboard
+
+Bot owners can add or update applications in a persistent invite dashboard:
+
+```text
+/invite user_id:BOT_USER_ID permissions:PERMISSION_INTEGER channel:#bot-invites
+```
+
+The command validates the bot ID and permission bitfield, then creates or updates
+one combined dashboard. Each entry contains an **Add App** button. Discord does
+not expose a reliable way to infer every permission a bot's code actually needs,
+so use the permission integer chosen for that application.
+
+## Admin Reminder System
+
+Only members with Discord's **Administrator** permission can create, edit,
+cancel, acknowledge, snooze, or inspect reminders.
+
+```text
+/reminder create title:Renew VPS when:20-07-2026 17:00 channel:#important-work ping:@Admins repeat:Monthly priority:Critical
+/reminder list
+/reminder edit id:REMINDER_ID
+/reminder cancel id:REMINDER_ID
+/reminder panel channel:#important-work
+```
+
+Relative times (`10m`, `2h`, `3d`, `1w`) and absolute IST dates
+(`DD-MM-YYYY HH:mm` or `YYYY-MM-DD HH:mm`) are supported. Creation first shows
+an ephemeral Confirm/Edit/Cancel preview. Due reminders are delivered publicly
+with Mark Done, Snooze 10m, Snooze 1h, Tomorrow, and Cancel buttons. Important
+reminders re-ping once after 15 minutes; critical reminders re-ping after 10 and
+30 minutes. State is saved in `data/reminders.json`, missed reminders recover
+after restart, recurring reminders advance automatically, and the dashboard
+refreshes every 30 seconds.
 
 ## Bot Status
 

@@ -174,7 +174,7 @@ export function buildEditorComponents(settings) {
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId('ticket_editor:send')
-        .setLabel('Send Panel')
+        .setLabel(settings.panelMessageId ? 'Update Panel' : 'Send Panel')
         .setStyle(ButtonStyle.Success),
       new ButtonBuilder()
         .setCustomId('ticket_editor:cancel')
@@ -557,17 +557,39 @@ export async function sendFinalPanel(interaction) {
   }
 
   const channel = await interaction.guild.channels.fetch(settings.panelChannelId);
+  const deployedChannelId = settings.deployedPanelChannelId || settings.panelChannelId;
+  const deployedChannel = settings.panelMessageId
+    ? await interaction.guild.channels.fetch(deployedChannelId).catch(() => null)
+    : null;
+  const existingMessage = deployedChannel?.isTextBased()
+    ? await deployedChannel.messages.fetch(settings.panelMessageId).catch(() => null)
+    : null;
 
-  await channel.send({
+  const payload = {
     embeds: [buildTicketPanelEmbed(settings)],
     components: buildTicketPanelComponents(settings)
+  };
+  let panelMessage;
+  if (existingMessage && deployedChannel.id === channel.id) {
+    panelMessage = await existingMessage.edit(payload);
+  } else {
+    panelMessage = await channel.send(payload);
+    await existingMessage?.delete().catch(() => {});
+  }
+
+  const nextSettings = await updateTicketSettings({
+    panelMessageId: panelMessage.id,
+    deployedPanelChannelId: channel.id
   });
 
-  await updateEditorPreview(interaction, settings);
+  await updateEditorPreview(interaction, nextSettings);
 
   await interaction.followUp({
     flags: privateCv2Flags,
-    components: [simpleContainer('Panel Sent', `Ticket panel sent to ${channel}.`)]
+    components: [simpleContainer(
+      existingMessage ? 'Panel Updated' : 'Panel Sent',
+      `Ticket panel ${existingMessage ? 'updated in' : 'sent to'} ${channel}.`
+    )]
   });
 }
 

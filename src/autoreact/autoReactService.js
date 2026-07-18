@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { ChannelType } from 'discord.js';
 import { config } from '../config.js';
 import { privateCv2Flags, simpleContainer } from '../ui/cv2.js';
@@ -117,16 +118,21 @@ export async function removeAutoReactRuleReply(interaction) {
 }
 
 function buildRule(interaction, type, targetId, emoji) {
+  const reactionEmoji = normalizeReactionEmoji(emoji);
   return {
-    id: `${type}:${targetId}`,
+    id: `${type}:${targetId}:${emojiId(reactionEmoji)}`,
     guildId: interaction.guildId,
     type,
     targetId,
-    reactionEmoji: normalizeReactionEmoji(emoji),
+    reactionEmoji,
     displayEmoji: emoji,
     createdBy: interaction.user.id,
     createdAt: Date.now()
   };
+}
+
+function emojiId(emoji) {
+  return createHash('sha256').update(emoji).digest('hex').slice(0, 10);
 }
 
 function normalizeReactionEmoji(emoji) {
