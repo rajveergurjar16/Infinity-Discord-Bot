@@ -78,6 +78,11 @@ function editorComponents(type, template) {
             value: 'message'
           },
           {
+            label: 'Edit Normal Message',
+            description: 'Content shown above the embed; mentions can ping.',
+            value: 'content'
+          },
+          {
             label: 'Edit Images',
             description: 'Thumbnail and large image URLs.',
             value: 'images'
@@ -118,9 +123,22 @@ function editorComponents(type, template) {
 
 function editorPayload(interaction, type, template) {
   const state = template.enabled ? 'Enabled' : 'Disabled';
+  const context = previewContext(interaction);
+  const normalContent = replacePlaceholders(template.content, context).slice(0, 2_000);
+  const configuration = new EmbedBuilder()
+    .setDescription([
+      `**${type === 'adopt' ? 'Tag Adopted' : 'Tag Removed'} notification** — ${state}`,
+      `Channel: ${template.channelId ? `<#${template.channelId}>` : 'Not selected'}`,
+      `Reward role: ${template.roleId ? `<@&${template.roleId}>` : 'Not selected'}`,
+      'Normal message mentions are disabled inside this preview.',
+      '',
+      '-# Placeholders: {user}, {displayname}, {username}, {userid}, {tag}, {server}, {membercount}, {avatar}'
+    ].join('\n'))
+    .setColor(0x2b2d31);
   return {
-    content: `**${type === 'adopt' ? 'Tag Adopted' : 'Tag Removed'} notification** — ${state}\nChannel: ${template.channelId ? `<#${template.channelId}>` : 'Not selected'}\nReward role: ${template.roleId ? `<@&${template.roleId}>` : 'Not selected'}\n-# Placeholders: {user}, {displayname}, {username}, {userid}, {tag}, {server}, {membercount}, {avatar}`,
-    embeds: [buildTemplateEmbed(template, previewContext(interaction))],
+    content: normalContent || '-# No normal message configured. The notification will contain only the embed.',
+    allowedMentions: { parse: [], users: [], roles: [], repliedUser: false },
+    embeds: [buildTemplateEmbed(template, context), configuration],
     components: editorComponents(type, template),
     flags: 64
   };
@@ -236,6 +254,10 @@ export async function handleSubtagInteraction(interaction) {
       await interaction.showModal(messageModal(type, editor.draft));
       return true;
     }
+    if (action === 'content') {
+      await interaction.showModal(contentModal(type, editor.draft));
+      return true;
+    }
     if (action === 'images') {
       await interaction.showModal(imagesModal(type, editor.draft));
       return true;
@@ -301,9 +323,11 @@ export async function handleSubtagInteraction(interaction) {
       editor.draft.description = interaction.fields.getTextInputValue('description').trim();
       editor.draft.color = normalizeColor(interaction.fields.getTextInputValue('color'), editor.draft.color);
       editor.draft.footer = interaction.fields.getTextInputValue('footer').trim() || null;
-    } else {
+    } else if (modal === 'images') {
       editor.draft.thumbnailUrl = interaction.fields.getTextInputValue('thumbnailUrl').trim() || null;
       editor.draft.imageUrl = interaction.fields.getTextInputValue('imageUrl').trim() || null;
+    } else {
+      editor.draft.content = interaction.fields.getTextInputValue('content').trim() || null;
     }
     try {
       buildTemplateEmbed(editor.draft, previewContext(interaction)).toJSON();
@@ -373,6 +397,23 @@ function editorUpdatePayload(interaction, type, template) {
   return payload;
 }
 
+function contentModal(type, template) {
+  return new ModalBuilder()
+    .setCustomId(`subtag_editor_modal:content:${type}`)
+    .setTitle('Edit Normal Message')
+    .addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('content')
+          .setLabel('Message above the embed (optional)')
+          .setStyle(TextInputStyle.Paragraph)
+          .setMaxLength(2_000)
+          .setValue(template.content || '')
+          .setRequired(false)
+      )
+    );
+}
+
 async function expireEditor(interaction) {
   await interaction.update({
     content: 'Subtag editor expired. Run the subtag command again.',
@@ -434,6 +475,19 @@ export async function handleSubtagUserUpdate(oldUser, newUser, client) {
       membercount: String(guild.memberCount),
       avatar: newUser.displayAvatarURL({ extension: newUser.avatar?.startsWith('a_') ? 'gif' : 'png', size: 256 })
     };
-    await channel.send({ embeds: [buildTemplateEmbed(template, context)] });
+    const content = replacePlaceholders(template.content, context).slice(0, 2_000);
+    await channel.send({
+      content: content || undefined,
+      allowedMentions: allowedMentionsForContent(content, newUser.id),
+      embeds: [buildTemplateEmbed(template, context)]
+    });
   }
+}
+
+function allowedMentionsForContent(content, userId) {
+  const users = [...String(content).matchAll(/<@!?([1-9]\d{16,19})>/g)].map((match) => match[1]);
+  const roles = [...String(content).matchAll(/<@&([1-9]\d{16,19})>/g)].map((match) => match[1]);
+  if (String(content).includes(`<@${userId}>`)) users.push(userId);
+  const parse = /@(everyone|here)\b/i.test(String(content)) ? ['everyone'] : [];
+  return { parse, users: [...new Set(users)], roles: [...new Set(roles)], repliedUser: false };
 }

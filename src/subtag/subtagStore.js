@@ -9,6 +9,7 @@ const defaults = {
   adopt: {
     enabled: true,
     channelId: null,
+    content: null,
     title: 'Server Tag Adopted',
     description: 'Thank you {user} for representing **{server}** with the **{tag}** tag!',
     color: '#00ff19',
@@ -19,6 +20,7 @@ const defaults = {
   remove: {
     enabled: true,
     channelId: null,
+    content: null,
     title: 'Server Tag Removed',
     description: '{user} removed the **{tag}** server tag from their profile.',
     color: '#ff0000',
@@ -33,6 +35,7 @@ function normalizeTemplate(value, type) {
   return {
     enabled: typeof value?.enabled === 'boolean' ? value.enabled : fallback.enabled,
     channelId: typeof value?.channelId === 'string' ? value.channelId : null,
+    content: typeof value?.content === 'string' && value.content ? value.content : null,
     title: typeof value?.title === 'string' ? value.title : fallback.title,
     description: typeof value?.description === 'string' ? value.description : fallback.description,
     color: /^#[0-9a-f]{6}$/i.test(value?.color) ? value.color : fallback.color,
